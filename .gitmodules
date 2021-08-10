@@ -1,0 +1,6 @@
+[submodule "multi_rtd"]
+	path = multi_rtd
+	url = https://github.com/adamdai/multi_rtd.git
+[submodule "offboard_ibqr"]
+	path = offboard_ibqr
+	url = https://github.com/mns4595/offboard_ibqr.git
