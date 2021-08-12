@@ -11,4 +11,4 @@
 ### Notes
  - Add `source ~/px4_ros_com_ros2/install/setup.bash` to `.bashrc`
    - No need to additionally source ROS 2
- - May need to make clean before building (run `~/px4_ros_com_ros2/src/px4_ros_com/scripts/clean_all.bash`)
+ - May need to make clean before building (`source ~/px4_ros_com_ros2/src/px4_ros_com/scripts/clean_all.bash`)
