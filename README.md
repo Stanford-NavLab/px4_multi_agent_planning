@@ -5,7 +5,7 @@
  - `cd px4_multi_agent_planning`
  - `git submodule init`
  - `git submodule update`
- - `cd ~/px4_ros_com_ros2/src`
+ - `cd ~/px4_ros_com_ros2`
  - `colcon build`
 
 ### Notes
