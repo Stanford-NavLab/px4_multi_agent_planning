@@ -8,6 +8,7 @@ def generate_launch_description():
     for arg in sys.argv:
         if arg.startswith("ns:="):
             ns = arg.split(":=")[1]
+            sys_id = int(arg.split("_")[1])
 
     return LaunchDescription([
         Node(
@@ -22,6 +23,7 @@ def generate_launch_description():
             node_namespace=ns,
             node_executable='offboard_control',
             output='screen',
+            #parameters=["sys_id": sys_id],
             emulate_tty=True
         )
     ])
