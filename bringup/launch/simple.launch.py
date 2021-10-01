@@ -23,7 +23,6 @@ def generate_launch_description():
             node_namespace=ns,
             node_executable='offboard_control',
             output='screen',
-            #parameters=["sys_id": sys_id],
             emulate_tty=True
         )
     ])
