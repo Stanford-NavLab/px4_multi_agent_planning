@@ -17,12 +17,5 @@ def generate_launch_description():
             node_executable='multi_planner',
             #output='screen',
             emulate_tty=True
-        ),
-        Node(
-            package='offboard_ibqr',
-            node_namespace=ns,
-            node_executable='offboard_control',
-            output='screen',
-            emulate_tty=True
         )
     ])
