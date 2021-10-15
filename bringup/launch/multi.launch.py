@@ -15,7 +15,7 @@ def generate_launch_description():
             package='multi_rtd',
             node_name=ns,
             node_executable='multi_planner',
-            #output='screen',
+            output='screen',
             emulate_tty=True
         )
     ])
