@@ -36,6 +36,10 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobotTrajectory.msg"
+  "msg/ZonotopeMsg.msg"
+  "msg/ZonotopeMsgArray.msg"
+  "msg/Cylinder.msg"
+  "msg/CylinderArray.msg"
   DEPENDENCIES std_msgs trajectory_msgs
  )
 

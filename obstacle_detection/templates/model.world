@@ -1,0 +1,57 @@
+    <model name='0'>
+      <static>1</static>
+      <link name='link'>
+        <inertial>
+          <mass>2</mass>
+          <inertia>
+            <ixx>3.55486</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>3.55486</iyy>
+            <iyz>0</iyz>
+            <izz>0.297884</izz>
+          </inertia>
+        </inertial>
+        <collision name='collision'>
+          <geometry>
+            <cylinder>
+              <length>4.52056</length>
+              <radius>0.545787</radius>
+            </cylinder>
+          </geometry>
+          <surface>
+            <contact>
+              <collide_without_contact>1</collide_without_contact>
+              <ode/>
+            </contact>
+            <bounce/>
+            <friction>
+              <torsional>
+                <ode/>
+              </torsional>
+              <ode/>
+            </friction>
+          </surface>
+          <max_contacts>10</max_contacts>
+        </collision>
+        <visual name='visual'>
+          <geometry>
+            <cylinder>
+              <length>4.52056</length>
+              <radius>0.545787</radius>
+            </cylinder>
+          </geometry>
+          <material>
+            <script>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+              <name>Gazebo/Blue</name>
+            </script>
+          </material>
+        </visual>
+        <gravity>0</gravity>
+        <self_collide>0</self_collide>
+        <kinematic>0</kinematic>
+      </link>
+      <pose frame=''>38.7282 38.0226 2.26028 0 -0 0</pose>
+    </model>
+ 
