@@ -9,7 +9,9 @@ class ZonotopePublisher(Node):
 
     def __init__(self):
         super().__init__('ground_truth_obstacle_publisher')
-        self.publisher = self.create_publisher(ZonotopeMsgArray,'zonotope_map',10)
+
+        self.name = self.get_namespace()
+        self.publisher = self.create_publisher(ZonotopeMsgArray,self.name + 'map/zonotopes',10)
 
         # Set node parameters
         self.declare_parameter('worldfile','/home/navlab-exxact-18/PX4-Autopilot/Tools/sitl_gazebo/worlds/static_forest.world')

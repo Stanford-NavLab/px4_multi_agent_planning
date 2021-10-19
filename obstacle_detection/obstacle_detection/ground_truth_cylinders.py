@@ -9,7 +9,9 @@ class CylinderPublisher(Node):
 
     def __init__(self):
         super().__init__('ground_truth_cylinder_publisher')
-        self.publisher = self.create_publisher(CylinderArray,'cylinder_map',10)
+
+        self.name = self.get_namespace()
+        self.publisher = self.create_publisher(CylinderArray,self.name + 'map/cylinders',10)
 
         self.declare_parameter('worldfile','/home/navlab-exxact-18/PX4-Autopilot/Tools/sitl_gazebo/worlds/static_forest.world')
         self.declare_parameter('rate',1.0)
