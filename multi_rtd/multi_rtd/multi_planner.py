@@ -19,8 +19,8 @@ class MultiPlanner(Node):
     def __init__(self, lpm_file):
         super().__init__('multi_planner')
         """ --------------- Timing and global variables --------------- """
-        self.T_REPLAN = 1.0 # [s] amount of time between replans
-        self.T_PLAN = 0.7 # [s] amount of time allotted for planning itself (remaining time allotted for checking)
+        self.T_REPLAN = 0.5 # [s] amount of time between replans
+        self.T_PLAN = 0.4 # [s] amount of time allotted for planning itself (remaining time allotted for checking)
         self.N_BOTS = 2 # total number of bots in the sim
         self.N_DIM = 3
         self.R_BOT = 0.25 # [m]
@@ -238,6 +238,7 @@ class MultiPlanner(Node):
         """
         for bot in self.committed_plans.keys():
             other_plan = self.committed_plans[bot][0]
+            print("checking: ", other_plan)
             if not check_plan_collision(plan, other_plan, self.R_BOT):
                 return False
         return True
@@ -337,12 +338,12 @@ class MultiPlanner(Node):
             cand_plan = np.vstack((T_new, P_idx))
 
             # check against other plans
-            #check_others = self.check_peer_plan_collisions(cand_plan)
+            check_others = self.check_peer_plan_collisions(cand_plan)
 
             # check against obstacles
             check_obs = self.check_obstacle_collisions(cand_plan)
 
-            if check_obs:
+            if check_obs and check_others:
                 return v_peak
             else:
                 idx_v_peak += 1
@@ -410,7 +411,6 @@ class MultiPlanner(Node):
 
             # time to start the trajectory from (relative to absolute time)
             t2start = self.get_time() + self.T_REPLAN 
-            print("t2start:", t2start)
 
             # create time vector for the new plan
             T_new = self.lpm.time + t2start

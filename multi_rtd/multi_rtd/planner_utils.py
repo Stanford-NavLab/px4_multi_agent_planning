@@ -42,7 +42,7 @@ def check_plan_collision(plan_1, plan_2, r_collision):
     time_2 = plan_2[0,:]
     traj_2 = match_trajectories(time_1, time_2, plan_2[1:4,:])
     d_vec = np.linalg.norm(traj_1 - traj_2, 2, 0)
-    if any(d_vec <= r_collision):
+    if any(d_vec <= 2*r_collision):
         return False
     else:
         return True
