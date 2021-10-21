@@ -83,9 +83,9 @@ class MultiPlanner(Node):
             self.INIT_OFFSET = np.array([[0],[0],[0]])
             self.p_goal = np.array([[0],[10],[0]])
         elif self.name == 'iris_1':
-            self.p_0 = np.array([[0],[0],[0]])
+            self.p_0 = np.array([[0],[3],[0]])
             self.INIT_OFFSET = np.array([[0],[3],[0]])
-            self.p_goal = np.array([[0],[0],[0]])
+            self.p_goal = np.array([[0],[3],[0]])
         self.v_0 = np.zeros((3,1))
         self.a_0 = np.zeros((3,1))
 
@@ -456,6 +456,8 @@ class MultiPlanner(Node):
                         # planning has succeeded! commit and publish the plan
                         self.commit_plan[0,:] = self.pend_plan[0,:]
                         self.commit_plan[1:,:] = self.pend_plan[1:,:]
+                        # shift plan to local coordinates for tracking
+                        p = p - self.INIT_OFFSET
                         traj_msg = wrap_robot_traj_msg((p,v,a), t2start, self.name)
                         print("Publishing trajectory")
                         self.traj_pub.publish(traj_msg)
