@@ -74,8 +74,7 @@ endfunction()
 ## Add executables
 custom_executable(offboard offboard_control)
 custom_executable(offboard offboard_tester)
-custom_executable(offboard offboard_waypoint)
-custom_executable(offboard multi_offboard_control)
+#custom_executable(offboard offboard_waypoint)
 custom_executable(myTools trajectory_logger)
 
 ############

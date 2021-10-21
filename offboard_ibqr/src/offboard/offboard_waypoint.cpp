@@ -67,6 +67,8 @@ using namespace px4_msgs::msg;
 #define HOME_POSITION_YAW					3.14	// Yaw for home (in rad)
 #define TAKEOFF_SPEED						-0.5	// In meters/second
 
+#define OFFSET_Z							0.5
+
 
 class OffboardControl : public rclcpp::Node {
 public:
@@ -100,7 +102,7 @@ public:
 					timestamp_.store(msg->timestamp);
 				});
 		homeReachedFlag = false;
-		AtHomeFlag = true
+		AtHomeFlag = true;
 		homeLocation.x = HOME_POSITION_X;
 		homeLocation.y = HOME_POSITION_Y;
 		homeLocation.z = HOME_POSITION_Z + OFFSET_Z;
@@ -151,7 +153,7 @@ private:
 
 	std::atomic<uint64_t> timestamp_;   			//!< common synced timestamped
 	mutable std::uint8_t homeReachedFlag;	        // Boolean to determine if the set home pose has been reached
-	mutable std::uint8_t AtHomeFlag
+	mutable std::uint8_t AtHomeFlag;
 
 	mutable TrajectorySetpoint homeLocation{};		// Home Position
 
@@ -227,7 +229,7 @@ void OffboardControl::publish_trajectory_setpoint() const {
 	goal.y = 0.0;
 	goal.z = -5.0;
 	goal.yaw = -3.14; // [-PI:PI]
-	trajectory_setpoint_publisher_->publish(msg);
+	trajectory_setpoint_publisher_->publish(goal);
 	AtHomeFlag = false
 	}
 

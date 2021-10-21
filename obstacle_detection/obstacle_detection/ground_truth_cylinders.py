@@ -13,8 +13,9 @@ class CylinderPublisher(Node):
         self.name = self.get_namespace()
         self.publisher = self.create_publisher(CylinderArray,self.name + 'map/cylinders',10)
 
-        self.declare_parameter('worldfile','/home/navlab-exxact-18/PX4-Autopilot/Tools/sitl_gazebo/worlds/static_forest.world')
-        self.declare_parameter('rate',1.0)
+        #self.declare_parameter('worldfile','/home/navlab-exxact-18/PX4-Autopilot/Tools/sitl_gazebo/worlds/static_forest.world')
+        self.declare_parameter('worldfile','/home/navlab-exxact-18/PX4-Autopilot/Tools/sitl_gazebo/worlds/single_cylinder.world')
+        self.declare_parameter('rate',10.0)
 
         self.cylinders = self.get_cylinders()
         self.cylinder_array = self.get_cylinder_array()

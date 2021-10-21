@@ -1,6 +1,6 @@
 from setuptools import setup
 
-package_name = 'obstacle_detection'
+package_name = 'global_planner'
 
 setup(
     name=package_name,
@@ -20,10 +20,6 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'ground_truth = obstacle_detection.ground_truth:main',
-            'visualize_map = obstacle_detection.visualize_map:main',
-            'ground_truth_cylinders = obstacle_detection.ground_truth_cylinders:main',
-            'proximity_filter_cylinders = obstacle_detection.proximity_filter_cylinders:main',
         ],
     },
 )
