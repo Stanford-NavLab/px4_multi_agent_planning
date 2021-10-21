@@ -426,7 +426,8 @@ class MultiPlanner(Node):
 
                 self.get_logger().info(str(T_log.shape))
                 self.get_logger().info(str(T_old.shape))
-                self.get_logger().info(str((T_old[-1] + self.T_PLAN).shape))
+                print(T_old[-1])
+                print(self.T_PLAN)
 
                 # increase the length of the old plan by t_plan
                 # TODO: check to make sure this keeps the plan the same length
