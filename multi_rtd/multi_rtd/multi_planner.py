@@ -238,7 +238,6 @@ class MultiPlanner(Node):
         """
         for bot in self.committed_plans.keys():
             other_plan = self.committed_plans[bot][0]
-            print("checking: ", other_plan)
             if not check_plan_collision(plan, other_plan, self.R_BOT):
                 return False
         return True
@@ -426,8 +425,8 @@ class MultiPlanner(Node):
 
                 self.get_logger().info(str(T_log.shape))
                 self.get_logger().info(str(T_old.shape))
-                print(T_old[-1])
-                print(self.T_PLAN)
+                print("T_old: ", T_old[-1])
+                print("t_plan: ", self.T_PLAN)
 
                 # increase the length of the old plan by t_plan
                 # TODO: check to make sure this keeps the plan the same length
@@ -438,7 +437,7 @@ class MultiPlanner(Node):
 
             # otherwise, create a new pending plan and enter checking phase
             else:  
-                self.get_logger().info("Found a new plan")
+                #self.get_logger().info("Found a new plan")
                 k = np.hstack((self.v_0, self.a_0, v_peak))
                 p,v,a = self.lpm.compute_trajectory(k) 
                 p = p + self.p_0 # translate to p_0
@@ -460,7 +459,7 @@ class MultiPlanner(Node):
                         # shift plan to local coordinates for tracking
                         p = p - self.INIT_OFFSET
                         traj_msg = wrap_robot_traj_msg((p,v,a), t2start, self.name)
-                        print("Publishing trajectory")
+                        #print("Publishing trajectory")
                         self.traj_pub.publish(traj_msg)
                 
                 # if either check or recheck fails, bail out and revert to previous plan
