@@ -74,6 +74,7 @@ class MultiPlanner(Node):
         # init LPM object
         self.lpm = LPM(lpm_file)
         self.n_t_plan = len(self.lpm.time) # planned trajectory length
+        self.dt = self.lpm.t_sample # trajectory discretization time
         self.n_plan_max = 10000 # max number of plans to evaluate
 
         # initial conditions [m],[m/s],[m/s^2]
@@ -422,16 +423,17 @@ class MultiPlanner(Node):
                 self.get_logger().info("Failed to find a new plan")
                 # select parts of the previous plan that are yet to be executed
                 T_log = T_old >= self.get_time()
+                print("T_old: ", T_old)
+                print("T_log: ", T_log)
 
-                self.get_logger().info(str(T_log.shape))
-                self.get_logger().info(str(T_old.shape))
-                print("T_old: ", T_old[-1])
-                print("t_plan: ", self.T_PLAN)
+                n_t_next = n_t_plan - sum(T_log)
+                T_next = T_old[-1] + self.dt * np.arange(n_t_next) + self.dt
+                X_next = np.repeat(X_old[:,-1], n_t_next)
 
                 # increase the length of the old plan by t_plan
                 # TODO: check to make sure this keeps the plan the same length
-                self.commit_plan[0,:] = np.hstack((T_old[T_log], T_old[-1] + self.T_PLAN))
-                self.commit_plan[1:,:] = np.hstack((X_old[:,T_log], X_old[:,-1]))
+                self.commit_plan[0,:] = np.hstack((T_old[T_log], T_next))
+                self.commit_plan[1:,:] = np.hstack((X_old[:,T_log], X_next))
 
                 return
 
