@@ -80,13 +80,13 @@ class MultiPlanner(Node):
         # initial conditions [m],[m/s],[m/s^2]
         # hard-coded initial conditions and goals for now:
         if self.name == 'iris_0':
-            self.p_0 = np.array([[0],[0],[0]])
-            self.INIT_OFFSET = np.array([[0],[0],[0]])
-            self.p_goal = np.array([[0],[0],[0]])
+            self.INIT_OFFSET = np.array([[0],[0],[2]])
+            self.p_0 = self.INIT_OFFSET
+            self.p_goal = np.array([[0],[0],[2]])
         elif self.name == 'iris_1':
-            self.p_0 = np.array([[0],[3],[0]])
-            self.INIT_OFFSET = np.array([[0],[3],[0]])
-            self.p_goal = np.array([[0],[3],[0]])
+            self.INIT_OFFSET = np.array([[0],[3],[2]])
+            self.p_0 = self.INIT_OFFSET
+            self.p_goal = np.array([[0],[3],[2]])
         self.v_0 = np.zeros((3,1))
         self.a_0 = np.zeros((3,1))
 
@@ -166,8 +166,8 @@ class MultiPlanner(Node):
         Stores desired goal.
 
         """
-        self.get_logger().info("Goal Callback")
         self.p_goal = np.array([[data.point.x], [data.point.y], [data.point.z]])
+        print("Goal Callback", self.p_goal)
         self.flag_new_goal = True
 
 
@@ -182,6 +182,7 @@ class MultiPlanner(Node):
         """
         if not self.start:
             self.init_time = self.get_abs_time()
+            print("Init time: ", self.init_time)
         self.start = msg.data
 
 
@@ -332,6 +333,7 @@ class MultiPlanner(Node):
 
         # iterate through V_peaks until we find a feasible one
         idx_v_peak = 0
+        print("Time since t_start_plan: ", self.get_time() - t_start_plan)
         while (idx_v_peak <= n_V_peak):
         
             # get trajectory positions for current v_peak
@@ -352,6 +354,7 @@ class MultiPlanner(Node):
 
             if (self.get_time() - t_start_plan > self.T_PLAN):
                 print("ran out of time for planning")
+                print("idx = ", idx_v_peak)
                 break
 
         # no v_peaks are feasible
