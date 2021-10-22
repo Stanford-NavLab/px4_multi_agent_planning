@@ -4,23 +4,25 @@
 # Usage:
 #./startup.sh -n 10 -m iris
 
-num_vehicles=${NUM_VEHICLES:=2}
+num_vehicles=${NUM_VEHICLES:=1}
+world="static_world"
 
-gnome-terminal --tab -- /home/navlab-exxact-18/PX4-Autopilot/Tools/gazebo_sitl_multiple_run.sh -n ${num_vehicles} -w empty -m iris -t px4_sitl_rtps 
+gnome-terminal --tab -- /home/navlab-exxact-18/PX4-Autopilot/Tools/gazebo_sitl_multiple_run.sh -n ${num_vehicles} -w ${world} -m iris -t px4_sitl_rtps 
 spawn_time=$((12+2*${num_vehicles}))
 sleep ${spawn_time}
 
 n=0
 while [ ${n} -lt ${num_vehicles} ]; do
 	gnome-terminal --tab -- micrortps_agent -t UDP -n iris_${n} -r $((2020+2*${n})) -s $((2019+2*${n}))
-	n=$(($n + 1))
-done
-
-n=0
-while [ ${n} -lt ${num_vehicles} ]; do
 	gnome-terminal --tab -- ros2 launch bringup takeoff.launch.py ns:=iris_${n}
 	n=$(($n + 1))
 done
+
+# n=0
+# while [ ${n} -lt ${num_vehicles} ]; do
+# 	gnome-terminal --tab -- ros2 launch bringup takeoff.launch.py ns:=iris_${n}
+# 	n=$(($n + 1))
+# done
 
 # if [ "$1" == "-h" ] || [ "$1" == "--help" ]
 # then

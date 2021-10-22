@@ -20,6 +20,8 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'rrt_cylinders = global_planner.rrt_cylinders:main',
+            'waypoint_publisher = global_planner.waypoint_publisher:main',
         ],
     },
 )

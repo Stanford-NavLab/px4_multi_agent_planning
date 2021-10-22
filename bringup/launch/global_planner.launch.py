@@ -12,10 +12,17 @@ def generate_launch_description():
 
     return LaunchDescription([
         Node(
-            package='obstacle_detection',
-            node_name=ns,
-            node_executable='ground_truth_cylinders',
+            package='global_planner',
+            node_namespace=ns,
+            node_executable='rrt_cylinders',
             output='screen',
             emulate_tty=True
-        )
+        ),
+        Node(
+            package='global_planner',
+            node_namespace=ns,
+            node_executable='waypoint_publisher',
+            output='screen',
+            emulate_tty=True
+        ),
     ])

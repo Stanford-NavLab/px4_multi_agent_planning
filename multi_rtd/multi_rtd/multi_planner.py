@@ -174,7 +174,7 @@ class MultiPlanner(Node):
         Sets start flag.
         Use ros2 service call /simulation_start std_srvs/srv/SetBool "data: True"
         ros2 topic pub --once /simulation_start std_msgs/msg/Bool "data: True"
-        ros2 topic pub -r 10 /simulation_start std_gs/msg/Bool "data: True"
+        ros2 topic pub -r 10 /simulation_start std_msgs/msg/Bool "data: True"
 
         """
         if not self.start:
