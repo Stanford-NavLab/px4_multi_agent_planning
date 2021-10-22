@@ -350,7 +350,7 @@ class MultiPlanner(Node):
             else:
                 idx_v_peak += 1
 
-            if (self.get_time() - t_start_plan < self.T_PLAN):
+            if (self.get_time() - t_start_plan > self.T_PLAN):
                 print("ran out of time for planning")
                 break
 
@@ -409,7 +409,7 @@ class MultiPlanner(Node):
         if self.start:
             # start timer
             t_start_plan = self.get_time()
-            print("t_start_plan:", t_start_plan)
+            #print("t_start_plan:", t_start_plan)
 
             # get current plan
             T_old = self.commit_plan[0,:]
