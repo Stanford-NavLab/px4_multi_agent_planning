@@ -426,9 +426,9 @@ class MultiPlanner(Node):
                 print("T_old: ", T_old)
                 print("T_log: ", T_log)
 
-                n_t_next = n_t_plan - sum(T_log)
+                n_t_next = self.n_t_plan - sum(T_log)
                 T_next = T_old[-1] + self.dt * np.arange(n_t_next) + self.dt
-                X_next = np.repeat(X_old[:,-1], n_t_next)
+                X_next = np.repeat(X_old[:,-1][:,None], n_t_next, axis=1)
 
                 # increase the length of the old plan by t_plan
                 # TODO: check to make sure this keeps the plan the same length
