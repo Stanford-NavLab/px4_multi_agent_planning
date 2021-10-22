@@ -212,7 +212,7 @@ class MultiPlanner(Node):
         Save peer committed plan.
 
         """
-        print("Received peer trajectory")
+        print("Received peer trajectory, t = ", self.get_time())
         bot_name = data.robot_name
         traj = data.trajectory
         x_pos = traj.points[0].positions
@@ -332,7 +332,7 @@ class MultiPlanner(Node):
 
         # iterate through V_peaks until we find a feasible one
         idx_v_peak = 0
-        while (idx_v_peak <= n_V_peak) and (self.get_time() - t_start_plan < self.T_PLAN):
+        while (idx_v_peak <= n_V_peak):
         
             # get trajectory positions for current v_peak
             v_peak = np.reshape(V_peak[:,idx_v_peak], (3,1))
@@ -349,6 +349,10 @@ class MultiPlanner(Node):
                 return v_peak
             else:
                 idx_v_peak += 1
+
+            if (self.get_time() - t_start_plan < self.T_PLAN):
+                print("ran out of time for planning")
+                break
 
         # no v_peaks are feasible
         return None
@@ -425,8 +429,6 @@ class MultiPlanner(Node):
                 self.get_logger().info("Failed to find a new plan")
                 # select parts of the previous plan that are yet to be executed
                 T_log = T_old >= self.get_time()
-                print("T_old: ", T_old)
-                print("T_log: ", T_log)
 
                 n_t_next = self.n_t_plan - sum(T_log)
                 T_next = T_old[-1] + self.dt * np.arange(n_t_next) + self.dt
@@ -463,7 +465,7 @@ class MultiPlanner(Node):
                         # shift plan to local coordinates for tracking
                         p = p - self.INIT_OFFSET
                         traj_msg = wrap_robot_traj_msg((p,v,a), t2start, self.name)
-                        #print("Publishing trajectory")
+                        print("Publishing trajectory, t = ", self.get_time())
                         self.traj_pub.publish(traj_msg)
                 
                 # if either check or recheck fails, bail out and revert to previous plan
