@@ -82,7 +82,7 @@ class MultiPlanner(Node):
         if self.name == 'iris_0':
             self.INIT_OFFSET = np.array([[0],[0],[2]])
             self.p_0 = self.INIT_OFFSET
-            self.p_goal = np.array([[0],[0],[2]])
+            self.p_goal = np.array([[0],[5],[2]])
         elif self.name == 'iris_1':
             self.INIT_OFFSET = np.array([[0],[3],[2]])
             self.p_0 = self.INIT_OFFSET
