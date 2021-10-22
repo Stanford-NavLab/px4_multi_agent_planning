@@ -1,5 +1,6 @@
 import rclpy
 from rclpy.node import Node
+from rcl_interfaces.srv import GetParameters
 import numpy as np
 import os
 
@@ -69,6 +70,17 @@ class MultiPlanner(Node):
 
         # subscriber for detected obstacles
         detector_sub = self.create_subscription(CylinderArray, '/' + self.name + '/detected_cylinders', self.detector_callback, 10)
+        
+        """ --------------- Services and Clients --------------- """
+        # client for querying global parameters
+        self.client = self.create_client(GetParameters,
+                                         '/global_parameter_server/get_parameters')
+        request = GetParameters.Request()
+        request.names = ['my_global_param']
+        self.client.wait_for_service()
+        future = self.client.call_async(request)
+        future.add_done_callback(self.callback_global_param)
+
 
         """ --------------- Planning variables --------------- """
         # init LPM object
@@ -126,7 +138,16 @@ class MultiPlanner(Node):
 
 
         print("Waiting for start signal to be published")
+    
 
+    def callback_global_param(self, future):
+        try:
+            result = future.result()
+        except Exception as e:
+            self.get_logger().warn("service call failed %r" % (e,))
+        else:
+            param = result.values[0]
+            self.get_logger().info("Got global param: %s" % (param.string_value,))
 
 
     def get_time(self):
