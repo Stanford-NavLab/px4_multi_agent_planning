@@ -19,8 +19,8 @@ class MultiPlanner(Node):
     def __init__(self, lpm_file):
         super().__init__('multi_planner')
         """ --------------- Timing and global variables --------------- """
-        self.T_REPLAN = 1.0 # [s] amount of time between replans
-        self.T_PLAN = 0.7 # [s] amount of time allotted for planning itself (remaining time allotted for checking)
+        self.T_REPLAN = 0.5 # [s] amount of time between replans
+        self.T_PLAN = 0.4 # [s] amount of time allotted for planning itself (remaining time allotted for checking)
         self.N_BOTS = 2 # total number of bots in the sim
         self.N_DIM = 3
         self.R_BOT = 0.25 # [m]
@@ -74,6 +74,7 @@ class MultiPlanner(Node):
         # init LPM object
         self.lpm = LPM(lpm_file)
         self.n_t_plan = len(self.lpm.time) # planned trajectory length
+        self.dt = self.lpm.t_sample # trajectory discretization time
         self.n_plan_max = 10000 # max number of plans to evaluate
 
         # initial conditions [m],[m/s],[m/s^2]
@@ -81,11 +82,11 @@ class MultiPlanner(Node):
         if self.name == 'iris_0':
             self.p_0 = np.array([[0],[0],[0]])
             self.INIT_OFFSET = np.array([[0],[0],[0]])
-            self.p_goal = np.array([[0],[10],[0]])
-        elif self.name == 'iris_1':
-            self.p_0 = np.array([[0],[0],[0]])
-            self.INIT_OFFSET = np.array([[0],[3],[0]])
             self.p_goal = np.array([[0],[0],[0]])
+        elif self.name == 'iris_1':
+            self.p_0 = np.array([[0],[3],[0]])
+            self.INIT_OFFSET = np.array([[0],[3],[0]])
+            self.p_goal = np.array([[0],[3],[0]])
         self.v_0 = np.zeros((3,1))
         self.a_0 = np.zeros((3,1))
 
@@ -123,6 +124,8 @@ class MultiPlanner(Node):
         # Non-zonotope (cylinder): list of (center,radius) tuples 
         self.obstacles = []
 
+
+        print("Waiting for start signal to be published")
 
 
 
@@ -209,7 +212,7 @@ class MultiPlanner(Node):
         Save peer committed plan.
 
         """
-        print("Received peer trajectory")
+        print("Received peer trajectory, t = ", self.get_time())
         bot_name = data.robot_name
         traj = data.trajectory
         x_pos = traj.points[0].positions
@@ -329,7 +332,7 @@ class MultiPlanner(Node):
 
         # iterate through V_peaks until we find a feasible one
         idx_v_peak = 0
-        while (idx_v_peak <= n_V_peak) and (self.get_time() - t_start_plan < self.T_PLAN):
+        while (idx_v_peak <= n_V_peak):
         
             # get trajectory positions for current v_peak
             v_peak = np.reshape(V_peak[:,idx_v_peak], (3,1))
@@ -337,15 +340,19 @@ class MultiPlanner(Node):
             cand_plan = np.vstack((T_new, P_idx))
 
             # check against other plans
-            #check_others = self.check_peer_plan_collisions(cand_plan)
+            check_others = self.check_peer_plan_collisions(cand_plan)
 
             # check against obstacles
             check_obs = self.check_obstacle_collisions(cand_plan)
 
-            if check_obs:
+            if check_obs and check_others:
                 return v_peak
             else:
                 idx_v_peak += 1
+
+            if (self.get_time() - t_start_plan > self.T_PLAN):
+                print("ran out of time for planning")
+                break
 
         # no v_peaks are feasible
         return None
@@ -402,7 +409,7 @@ class MultiPlanner(Node):
         if self.start:
             # start timer
             t_start_plan = self.get_time()
-            print("t_start_plan:", t_start_plan)
+            #print("t_start_plan:", t_start_plan)
 
             # get current plan
             T_old = self.commit_plan[0,:]
@@ -410,7 +417,6 @@ class MultiPlanner(Node):
 
             # time to start the trajectory from (relative to absolute time)
             t2start = self.get_time() + self.T_REPLAN 
-            print("t2start:", t2start)
 
             # create time vector for the new plan
             T_new = self.lpm.time + t2start
@@ -424,20 +430,20 @@ class MultiPlanner(Node):
                 # select parts of the previous plan that are yet to be executed
                 T_log = T_old >= self.get_time()
 
-                self.get_logger().info(str(T_log.shape))
-                self.get_logger().info(str(T_old.shape))
-                self.get_logger().info(str((T_old[-1] + self.T_PLAN).shape))
+                n_t_next = self.n_t_plan - sum(T_log)
+                T_next = T_old[-1] + self.dt * np.arange(n_t_next) + self.dt
+                X_next = np.repeat(X_old[:,-1][:,None], n_t_next, axis=1)
 
                 # increase the length of the old plan by t_plan
                 # TODO: check to make sure this keeps the plan the same length
-                self.commit_plan[0,:] = np.hstack((T_old[T_log], T_old[-1] + self.T_PLAN))
-                self.commit_plan[1:,:] = np.hstack((X_old[:,T_log], X_old[:,-1]))
+                self.commit_plan[0,:] = np.hstack((T_old[T_log], T_next))
+                self.commit_plan[1:,:] = np.hstack((X_old[:,T_log], X_next))
 
                 return
 
             # otherwise, create a new pending plan and enter checking phase
             else:  
-                self.get_logger().info("Found a new plan")
+                #self.get_logger().info("Found a new plan")
                 k = np.hstack((self.v_0, self.a_0, v_peak))
                 p,v,a = self.lpm.compute_trajectory(k) 
                 p = p + self.p_0 # translate to p_0
@@ -456,8 +462,10 @@ class MultiPlanner(Node):
                         # planning has succeeded! commit and publish the plan
                         self.commit_plan[0,:] = self.pend_plan[0,:]
                         self.commit_plan[1:,:] = self.pend_plan[1:,:]
+                        # shift plan to local coordinates for tracking
+                        p = p - self.INIT_OFFSET
                         traj_msg = wrap_robot_traj_msg((p,v,a), t2start, self.name)
-                        print("Publishing trajectory")
+                        print("Publishing trajectory, t = ", self.get_time())
                         self.traj_pub.publish(traj_msg)
                 
                 # if either check or recheck fails, bail out and revert to previous plan
