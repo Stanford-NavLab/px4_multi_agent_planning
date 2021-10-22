@@ -82,7 +82,7 @@ class MultiPlanner(Node):
         if self.name == 'iris_0':
             self.p_0 = np.array([[0],[0],[0]])
             self.INIT_OFFSET = np.array([[0],[0],[0]])
-            self.p_goal = np.array([[0],[10],[0]])
+            self.p_goal = np.array([[0],[0],[0]])
         elif self.name == 'iris_1':
             self.p_0 = np.array([[0],[3],[0]])
             self.INIT_OFFSET = np.array([[0],[3],[0]])
@@ -124,6 +124,8 @@ class MultiPlanner(Node):
         # Non-zonotope (cylinder): list of (center,radius) tuples 
         self.obstacles = []
 
+
+        print("Waiting for start signal to be published")
 
 
 
@@ -175,7 +177,7 @@ class MultiPlanner(Node):
         Sets start flag.
         Use ros2 service call /simulation_start std_srvs/srv/SetBool "data: True"
         ros2 topic pub --once /simulation_start std_msgs/msg/Bool "data: True"
-        ros2 topic pub -r 10 /simulation_start std_gs/msg/Bool "data: True"
+        ros2 topic pub -r 10 /simulation_start std_msgs/msg/Bool "data: True"
 
         """
         if not self.start:
@@ -426,9 +428,9 @@ class MultiPlanner(Node):
                 print("T_old: ", T_old)
                 print("T_log: ", T_log)
 
-                n_t_next = n_t_plan - sum(T_log)
+                n_t_next = self.n_t_plan - sum(T_log)
                 T_next = T_old[-1] + self.dt * np.arange(n_t_next) + self.dt
-                X_next = np.repeat(X_old[:,-1], n_t_next)
+                X_next = np.repeat(X_old[:,-1][:,None], n_t_next, axis=1)
 
                 # increase the length of the old plan by t_plan
                 # TODO: check to make sure this keeps the plan the same length
