@@ -4,9 +4,9 @@ global_parameter_server:
     vehicle_model: iris
     num_vehicles: 2
     # Spawn locations are in ENU coordinate frame
-    spawn_x:
+    spawn_x: 
       - 0.0
       - 0.0
     spawn_y:
       - 0.0
-      - 0.3
+      - 3.0

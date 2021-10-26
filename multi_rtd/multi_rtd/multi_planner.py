@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rcl_interfaces.srv import GetParameters
 import numpy as np
-import os
+import os, sys
 
 from LPM import LPM
 from planner_utils import *
@@ -11,6 +11,9 @@ from geometry_msgs.msg import PointStamped
 from multi_rtd_interfaces.msg import RobotTrajectory, CylinderArray
 from std_msgs.msg import Bool
 from px4_msgs.msg import VehicleOdometry
+
+from utility.parameter_utils import get_param_value
+
 
 class MultiPlanner(Node):
     """Multi-agent Planner
@@ -76,10 +79,17 @@ class MultiPlanner(Node):
         self.client = self.create_client(GetParameters,
                                          '/global_parameter_server/get_parameters')
         request = GetParameters.Request()
-        request.names = ['my_global_param']
+        request.names = ['vehicle_model','num_vehicles']
         self.client.wait_for_service()
         future = self.client.call_async(request)
         future.add_done_callback(self.callback_global_param)
+
+        print("request names: ", request.names)
+        print("request values: ", request.values)
+
+
+        # get spawn location from global parameters
+        # needed to transform odometry from local coordinates to global frame
 
 
         """ --------------- Planning variables --------------- """
@@ -146,8 +156,10 @@ class MultiPlanner(Node):
         except Exception as e:
             self.get_logger().warn("service call failed %r" % (e,))
         else:
-            param = result.values[0]
-            self.get_logger().info("Got global param: %s" % (param.string_value,))
+            for i in range(len(result.values)):
+                param = result.values[i]
+                val = get_param_value(param)
+                print("Got global param: ", val)
 
 
     def get_time(self):

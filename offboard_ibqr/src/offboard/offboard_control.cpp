@@ -166,6 +166,17 @@ public:
 		homeLocation.yaw = HOME_POSITION_YAW;
 		homeLocation.vz = TAKEOFF_SPEED;
 
+		// Retreive drone spawn location from global parameters in order to use transformation from global to local coordinates
+		// we do planning in global coordinates but PX4 accepts setpoints in local coordinates (based on where the drone spawned)
+		parameters_client = 
+            std::make_shared<rclcpp::AsyncParametersClient>(this, "/global_parameter_server");
+        parameters_client->wait_for_service();
+        auto parameters_future = parameters_client->get_parameters(
+            {"vehicle_model"},
+            std::bind(&OffboardControl::callbackGlobalParam, this, std::placeholders::_1));
+		
+	    //RCLCPP_INFO(this->get_logger(), parameters_future[0].as_string());
+
 		offboard_setpoint_counter_ = 0;
 
 		timer_callback_counter = 0;
@@ -205,6 +216,7 @@ public:
 	//---- Class Public Methods ----//
 	void arm() const;
 	void disarm() const;
+	void callbackGlobalParam(std::shared_future<std::vector<rclcpp::Parameter>> future);
 
 private:
 	//---- Class Variables ----//
@@ -249,6 +261,8 @@ private:
 	
 	uint64_t system_ID;				                // ID for this target system
 
+	std::shared_ptr<rclcpp::AsyncParametersClient> parameters_client;  // Global parameter client
+
 	//---- Class Private Methods ----//
 	void publish_offboard_control_mode() const;
 	void publish_trajectory_setpoint() const;
@@ -292,6 +306,16 @@ void OffboardControl::disarm() const
 	publish_vehicle_command(VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, 0.0);
 
 	RCLCPP_INFO(this->get_logger(), "Disarm command send");
+}
+
+/**
+ * @brief Global parameter callback
+ */
+void OffboardControl::callbackGlobalParam(std::shared_future<std::vector<rclcpp::Parameter>> future)
+{
+	auto result = future.get();
+	auto param = result.at(0);
+	RCLCPP_INFO(this->get_logger(), "Got global param: %s", param.as_string().c_str());
 }
 
 /**

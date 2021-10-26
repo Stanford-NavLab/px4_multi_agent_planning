@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from multi_rtd_interfaces.msg import Cylinder, CylinderArray
 from nav_msgs.msg import Path
-from geometry_msgs.msg import Pose,PoseStamped,PointStamped
+from geometry_msgs.msg import Pose,PoseStamped
 
 import numpy as np
 import matplotlib.pyplot as plt
