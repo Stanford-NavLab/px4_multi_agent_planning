@@ -49,6 +49,15 @@
  * @author Marco Nunez <maez@alumni.stanford.edu>
  */
 
+/**
+ * This node serves as the "trajectory handler" for the trajectory planner. It subscribes
+ * to planned trajectories and sends setpoints for PX4 to track.
+ * 
+ * The offboard_control node deals with odometry and setpoints entirely in the local
+ * NED PX4 frame. The planner produces trajectories in ENU global frame which are transformed
+ * to local NED by the px4_interface node before being passed to offboard_control
+ */
+
 /******************************** Include Files *******************************/
 #include <px4_msgs/msg/offboard_control_mode.hpp>
 #include <px4_msgs/msg/trajectory_setpoint.hpp>
@@ -83,7 +92,7 @@ using std::placeholders::_1;
 /* Note PX4 uses NED coordinate frame */
 #define HOME_POSITION_X                     0       // x-coordinate for home
 #define HOME_POSITION_Y                     0       // y-coordinate for home
-#define HOME_POSITION_Z                     -2      // z-coordinate for home
+#define HOME_POSITION_Z                     2       // z-coordinate for home
 #define HOME_POSITION_YAW					3.14	// Yaw for home (in rad)
 
 #define TAKEOFF_SPEED						-0.5	// In meters/second
@@ -122,22 +131,13 @@ public:
 		trajectory_log_action_publisher_ = this->create_publisher<Char>("TrajectoryLogAction", 10);
 #endif
 
-#ifdef ROS_DEFAULT_API
+		// publishers
 		offboard_control_mode_publisher_ =
 			this->create_publisher<OffboardControlMode>("fmu/offboard_control_mode/in", 10);
 		trajectory_setpoint_publisher_ =
 			this->create_publisher<TrajectorySetpoint>("fmu/trajectory_setpoint/in", 10);
 		vehicle_command_publisher_ =
 			this->create_publisher<VehicleCommand>("fmu/vehicle_command/in", 10);
-#else
-		offboard_control_mode_publisher_ =
-			this->create_publisher<OffboardControlMode>("fmu/offboard_control_mode/in");
-		trajectory_setpoint_publisher_ =
-			this->create_publisher<TrajectorySetpoint>("fmu/trajectory_setpoint/in");
-		vehicle_command_publisher_ =
-			this->create_publisher<VehicleCommand>("fmu/vehicle_command/in");
-#endif
-
 
 		// get common timestamp
 		timesync_sub_ =
@@ -166,21 +166,11 @@ public:
 		homeLocation.yaw = HOME_POSITION_YAW;
 		homeLocation.vz = TAKEOFF_SPEED;
 
-		// Retreive drone spawn location from global parameters in order to use transformation from global to local coordinates
-		// we do planning in global coordinates but PX4 accepts setpoints in local coordinates (based on where the drone spawned)
-		parameters_client = 
-            std::make_shared<rclcpp::AsyncParametersClient>(this, "/global_parameter_server");
-        parameters_client->wait_for_service();
-        auto parameters_future = parameters_client->get_parameters(
-            {"vehicle_model"},
-            std::bind(&OffboardControl::callbackGlobalParam, this, std::placeholders::_1));
-		
-	    //RCLCPP_INFO(this->get_logger(), parameters_future[0].as_string());
-
 		offboard_setpoint_counter_ = 0;
 
 		timer_callback_counter = 0;
 
+		// timer callback function (defined inline)
 		auto timer_callback = [this]() -> void {
 			timer_callback_counter++;
 
@@ -193,11 +183,11 @@ public:
 				this->arm();
 			}
 
-            		// offboard_control_mode needs to be paired with trajectory_setpoint
+            // offboard_control_mode needs to be paired with trajectory_setpoint
 			publish_offboard_control_mode();
 			publish_trajectory_setpoint();
 
-           		 // stop the counter after reaching 11
+           	// stop the counter after reaching 11
 			if (offboard_setpoint_counter_ < 101)
 			{
 				offboard_setpoint_counter_++;
@@ -216,7 +206,6 @@ public:
 	//---- Class Public Methods ----//
 	void arm() const;
 	void disarm() const;
-	void callbackGlobalParam(std::shared_future<std::vector<rclcpp::Parameter>> future);
 
 private:
 	//---- Class Variables ----//
@@ -261,8 +250,6 @@ private:
 	
 	uint64_t system_ID;				                // ID for this target system
 
-	std::shared_ptr<rclcpp::AsyncParametersClient> parameters_client;  // Global parameter client
-
 	//---- Class Private Methods ----//
 	void publish_offboard_control_mode() const;
 	void publish_trajectory_setpoint() const;
@@ -306,16 +293,6 @@ void OffboardControl::disarm() const
 	publish_vehicle_command(VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM, 0.0);
 
 	RCLCPP_INFO(this->get_logger(), "Disarm command send");
-}
-
-/**
- * @brief Global parameter callback
- */
-void OffboardControl::callbackGlobalParam(std::shared_future<std::vector<rclcpp::Parameter>> future)
-{
-	auto result = future.get();
-	auto param = result.at(0);
-	RCLCPP_INFO(this->get_logger(), "Got global param: %s", param.as_string().c_str());
 }
 
 /**
@@ -421,7 +398,6 @@ void OffboardControl::publish_trajectory_setpoint() const
 			// msg.yaw = HOME_POSITION_YAW;
 			// RCLCPP_INFO(this->get_logger(), "-pub %u: x=%f, y=%f, z=%f", count, msg.x, msg.y, msg.z);
 			/*****************/
-
 			trajectory_setpoint_publisher_->publish(homeLocation);
 		}
 	}
@@ -512,7 +488,7 @@ void OffboardControl::traj_callback(const trajectory_msgs::msg::JointTrajectory:
      * y-time from start: traj->points[1].time_from_start
      * z-time from start: traj->points[2].time_from_start
      */
-
+	RCLCPP_INFO(this->get_logger(), "Received a new trajectory");
 	// Clear any pre-existing trajectory
 	clearTrajPlan();
     // Store new trajectory - TODO : I am pretty sure there is no memory leak, but keep an eye out (clearTrajPlan should release the memory)
@@ -541,17 +517,29 @@ void OffboardControl::get_newPositionTarget(void) const
     RCLCPP_INFO(this->get_logger(), "New Target Received:");
 
 	// We apply a transformation to the planned trajectory points because we plan in ENU and px4 expects NED
-    positionTargetMsg.x = traj_planned->points[Y].positions[traj_index] + homeLocation.x;
-    positionTargetMsg.y = traj_planned->points[X].positions[traj_index] + homeLocation.y;
-    positionTargetMsg.z = -traj_planned->points[Z].positions[traj_index] + homeLocation.z - OFFSET_Z;
+    // positionTargetMsg.x = traj_planned->points[Y].positions[traj_index] + homeLocation.x;
+    // positionTargetMsg.y = traj_planned->points[X].positions[traj_index] + homeLocation.y;
+    // positionTargetMsg.z = -traj_planned->points[Z].positions[traj_index] + homeLocation.z - OFFSET_Z;
 
-	positionTargetMsg.vx = traj_planned->points[Y].velocities[traj_index];
-	positionTargetMsg.vy = traj_planned->points[X].velocities[traj_index];
-	positionTargetMsg.vz = -traj_planned->points[Z].velocities[traj_index];
+	// positionTargetMsg.vx = traj_planned->points[Y].velocities[traj_index];
+	// positionTargetMsg.vy = traj_planned->points[X].velocities[traj_index];
+	// positionTargetMsg.vz = -traj_planned->points[Z].velocities[traj_index];
 
-	positionTargetMsg.acceleration[X] = traj_planned->points[Y].accelerations[traj_index];
-	positionTargetMsg.acceleration[Y] = traj_planned->points[X].accelerations[traj_index];
-	positionTargetMsg.acceleration[Z] = -traj_planned->points[Z].accelerations[traj_index];
+	// positionTargetMsg.acceleration[X] = traj_planned->points[Y].accelerations[traj_index];
+	// positionTargetMsg.acceleration[Y] = traj_planned->points[X].accelerations[traj_index];
+	// positionTargetMsg.acceleration[Z] = -traj_planned->points[Z].accelerations[traj_index];
+
+	positionTargetMsg.x = traj_planned->points[X].positions[traj_index] + homeLocation.x;
+    positionTargetMsg.y = traj_planned->points[Y].positions[traj_index] + homeLocation.y;
+    positionTargetMsg.z = traj_planned->points[Z].positions[traj_index] + homeLocation.z - OFFSET_Z;
+
+	positionTargetMsg.vx = traj_planned->points[X].velocities[traj_index];
+	positionTargetMsg.vy = traj_planned->points[Y].velocities[traj_index];
+	positionTargetMsg.vz = traj_planned->points[Z].velocities[traj_index];
+
+	positionTargetMsg.acceleration[X] = traj_planned->points[X].accelerations[traj_index];
+	positionTargetMsg.acceleration[Y] = traj_planned->points[Y].accelerations[traj_index];
+	positionTargetMsg.acceleration[Z] = traj_planned->points[Z].accelerations[traj_index];
 
     RCLCPP_INFO(this->get_logger(), "rx = %f -- vx = %f -- ax = %f", positionTargetMsg.x, positionTargetMsg.vx, positionTargetMsg.acceleration[X]);
     RCLCPP_INFO(this->get_logger(), "ry = %f -- vy = %f -- ay = %f", positionTargetMsg.y, positionTargetMsg.vy, positionTargetMsg.acceleration[Y]);

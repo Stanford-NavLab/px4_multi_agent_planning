@@ -12,6 +12,7 @@ def get_param_value(param_val):
     """
 
     param_type = param_val.type
+    value = None
 
     if param_type == 1:
         value = param_val.bool_value

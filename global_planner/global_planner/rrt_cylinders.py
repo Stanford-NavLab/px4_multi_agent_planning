@@ -5,6 +5,7 @@ from nav_msgs.msg import Path
 from geometry_msgs.msg import Pose,PoseStamped
 
 import numpy as np
+from sklearn.neighbors import KDTree
 import matplotlib.pyplot as plt
 import time
 
@@ -17,7 +18,6 @@ class RRTCylinder(Node):
         self.ns = '/iris_0/'
 
         # Setup default parameters
-        self.declare_parameter('worldfile','/home/navlab-exxact-18/PX4-Autopilot/Tools/sitl_gazebo/worlds/static_forest.world')
         self.declare_parameter('planning_bounds',[0,50,0,50,0,10])
         self.declare_parameter('start_pos',[0,0,2])
         self.declare_parameter('goal_pos',[35,25,2])
@@ -26,7 +26,7 @@ class RRTCylinder(Node):
         self.declare_parameter('robot_radius',0.125)
         self.declare_parameter('max_step',0.75)
         self.declare_parameter('neighbor_radius',2.0)
-        self.declare_parameter('max_planning_time',10.0)
+        self.declare_parameter('max_planning_time',3.0)
         self.declare_parameter('goal_bias',0.1)
         self.declare_parameter('publish_rate',2)
 
@@ -80,31 +80,41 @@ class RRTCylinder(Node):
         if not self.valid_point(self.goal):
             raise Exception('Goal point intersects with an obstacle!')
         
-        # G looks like [(p1,parent1,cost1),...,(pn,parentn,costn)]
-        self.G = [(self.start,-1,0)]
+        # G looks like [(parent_idx1,cost1),...,(parent_idxn,costn)]
+        # nodes looks like [[x1,y1,z1],...,[xn,yn,zn]]
+        self.G = np.array([np.array([-1,0])])
+        self.nodes = np.array([self.start])
+
         xgoal = None
         t0 = time.time()
         while (time.time() - t0) < self.get_parameter('max_planning_time').value:
+
+            # Build a KDTree with self.nodes
+            self.tree = KDTree(self.nodes)
+
             prand = self.random_point(min_bound,max_bound)
             xnear_idx = self.nearest_idx(prand)
-            xnear = self.G[xnear_idx]
-            pnew = self.extend(xnear,prand)
+            pnear = self.nodes[xnear_idx]
+            pnew = self.extend(pnear,prand)
 
-            if not self.valid_point(pnew) or not self.valid_edge(xnear[0],pnew):
+            if not self.valid_point(pnew) or not self.valid_edge(pnear,pnew):
                 continue
 
-            neighbors = self.get_neighbors(pnew)
-            (parent_idx,cost) = self.choose_parent(neighbors,xnear_idx,pnew)
-            xnew = (pnew,parent_idx,cost)
+            neighbor_idxs = self.get_neighbors(pnew)
+            (parent_idx,cost) = self.choose_parent(neighbor_idxs,xnear_idx,pnew)
+            xnew = [parent_idx,cost]
             if np.all(pnew==self.goal):
                 print('Found goal!')
                 self.goal_bias = 0
                 xgoal = xnew
-            self.G.append(xnew)
-            self.rewire(neighbors,xnew)
+                (self.xgoal_idx,_) = self.G.shape
+            self.G = np.vstack((self.G,xnew))
+            self.nodes = np.vstack((self.nodes,pnew))
+            self.rewire(neighbor_idxs)
         if xgoal:
-            #self.visualize_path(path)
-            return self.get_path(xgoal)
+            path = self.get_path(xgoal)
+            self.visualize_path(path)
+            return path
         return None
 
     def get_plan_msg(self,path):
@@ -123,12 +133,16 @@ class RRTCylinder(Node):
 
     def get_path(self,xgoal):
         path = [xgoal[0]]
-        curr = xgoal
+        path = [self.goal]
+        currx = xgoal
+        currp = self.goal
         while True:
-            if np.all(curr[0] == self.start):
+            if np.all(currp == self.start):
                 break
-            curr = self.G[curr[1]]
-            path.insert(0,curr[0])
+            parent_idx = int(currx[0])
+            currx = self.G[parent_idx]
+            currp = self.nodes[parent_idx]
+            path.insert(0,currp)
         return path
             
     def random_point(self,min_bound,max_bound):
@@ -141,29 +155,37 @@ class RRTCylinder(Node):
         return np.random.uniform(low=min_bound,high=max_bound)
 
 
-    def rewire(self,neighbors,xnew):
+    def rewire(self,neighbor_idxs):
         '''
         Rewire nodes in neighborhood of xnew to go through xnew
         if the cost is lower
         '''
-        cost = xnew[2]
-        xnew_idx = len(self.G)-1
-        for (x,i) in neighbors:
-            if self.valid_edge(x[0],xnew[0]):
-                c = cost + self.dist(x[0],xnew[0])
-                if c < x[2]:
-                    self.G[i] = (x[0],xnew_idx,c)
+        pnew = self.nodes[-1]
+        xnew = self.G[-1]
+        cost = xnew[1]
+        (l,_) = self.nodes.shape
+        xnew_idx = l-1
 
-    def choose_parent(self,neighbors,xnear_idx,pnew):
+        for i in neighbor_idxs:
+            p = self.nodes[i]
+            if self.valid_edge(p,pnew):
+                c = cost + self.dist(p,pnew)
+                if c < self.G[i][1]:
+                    self.G[i] = [xnew_idx,c]
+
+    def choose_parent(self,neighbor_idxs,xnear_idx,pnew):
         '''
+        Choose the best parent for pnew
+        return (parent_idx,pnew_cost)
         '''
         xmin_idx = xnear_idx
-        xnear = self.G[xnear_idx]
-        min_cost = xnear[2] + self.dist(xnear[0],pnew)
+        pnear = self.nodes[xnear_idx]
+        min_cost = self.G[xnear_idx][1] + self.dist(pnear,pnew)
 
-        for (x,i) in neighbors:
-            if self.valid_edge(x[0],pnew):
-                cost = x[2] + self.dist(x[0],pnew)
+        for i in neighbor_idxs:
+            p = self.nodes[i]
+            if self.valid_edge(p,pnew):
+                cost = self.G[i][1] + self.dist(p,pnew)
                 if cost < min_cost:
                     min_cost = cost
                     xmin_idx = i
@@ -172,23 +194,16 @@ class RRTCylinder(Node):
 
     def get_neighbors(self,p):
         '''
-        Return all neighbors within neighbor_radius from p
-        neighbors = [(node,idx),...]
+        Return all neighbors as indices within neighbor_radius from p
         '''
-        neighbors = []
-        for i in range(len(self.G)):
-            x = self.G[i]
-            if self.dist(p,x[0]) <= self.neighbor_radius:
-                neighbors.append((x,i))
-
-        return neighbors
-
-    def extend(self,xnear,prand):
+        neighbor_idxs = self.tree.query_radius(np.array([p]),self.neighbor_radius)
+        return neighbor_idxs[0]
+    
+    def extend(self,pnear,prand):
         '''
         Create a new node along the line xnear->xrand
         with length no more that max_step_size
         '''
-        pnear = xnear[0]
         v = prand - pnear
         d = self.dist(pnear,prand)
         if d <= self.max_step:
@@ -214,6 +229,10 @@ class RRTCylinder(Node):
         '''
         Find the node that is closest to xrand
         '''
+        (dist,idx) = self.tree.query(np.array([prand]),k=1)
+        return idx[0][0]
+
+        '''
         min_dist = float('inf')
         min_idx = None
         for i in range(len(self.G)):
@@ -223,6 +242,7 @@ class RRTCylinder(Node):
                 min_dist = d
                 min_idx = i
         return min_idx
+        '''
 
     def valid_edge(self,s1,s2):
         '''

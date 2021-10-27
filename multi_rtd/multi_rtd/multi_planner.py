@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rcl_interfaces.srv import GetParameters
 import numpy as np
-import os, sys
+import os, time
 
 from LPM import LPM
 from planner_utils import *
@@ -18,23 +18,48 @@ from utility.parameter_utils import get_param_value
 class MultiPlanner(Node):
     """Multi-agent Planner
 
+    Trajectory planner which subscribes to vehicle odometry, obstacle detections, and peer robot
+    plans, and recomputes trajectories to follow in a receding-horizon fashion.
+
     """
 
     def __init__(self, lpm_file):
         super().__init__('multi_planner')
-        """ --------------- Timing and global variables --------------- """
+
+        # get namespace
+        self.name = self.get_name()
+        print("Running Multi-Robot Planner for", self.name)
+
+        # extract agent number from name
+        self.agent_num = int(self.name[-1])
+
+        """ --------------- Global parameters --------------- """
+        # client for querying global parameters
+        self.client = self.create_client(GetParameters,
+                                         '/global_parameter_server/get_parameters')
+        request = GetParameters.Request()
+        request.names = ['num_vehicles','spawn_x','spawn_y']
+
+        # dict for storying global params
+        self.global_params = dict.fromkeys(request.names, None)
+
+        # call GetParameters service
+        self.client.wait_for_service()
+        future = self.client.call_async(request)
+        future.add_done_callback(self.callback_global_param)
+
+        # initialize placeholder class variables (which will get set later by __initialize_planner())
+        self.N_BOTS = None
+        self.SPAWN_LOC = None
+
+        """ --------------- Timing and constants --------------- """
         self.T_REPLAN = 0.5 # [s] amount of time between replans
         self.T_PLAN = 0.4 # [s] amount of time allotted for planning itself (remaining time allotted for checking)
-        self.N_BOTS = 2 # total number of bots in the sim
         self.N_DIM = 3
         self.R_BOT = 0.25 # [m]
         self.XY_BOUNDS  = [-5.0, 5.0] # [m]
         self.Z_BOUNDS = [0.0, 5.0] # [m]
-        self.INIT_OFFSET = np.zeros((3,1))
-
-        # get namespace
-        self.name = self.get_name()
-        print(self.name)
+        self.TAKEOFF_Z = 2 # [m]
 
         # start signal
         self.start = False
@@ -62,35 +87,8 @@ class MultiPlanner(Node):
         # subscriber for odometry
         odom_sub = self.create_subscription(VehicleOdometry, '/' + self.name + '/fmu/vehicle_odometry/out', self.odom_callback, 10)
 
-        # subscribers for peer robot plans
-        plan_subs = {}
-        peer_bots = ['iris_' + str(i) for i in range(self.N_BOTS)]
-        print(peer_bots)
-        peer_bots.remove(self.name)
-        for peer_bot in peer_bots:
-            topic = '/' + peer_bot + '/planner/traj'
-            plan_subs[peer_bot] = self.create_subscription(RobotTrajectory, topic, self.traj_callback, 10)
-
         # subscriber for detected obstacles
         detector_sub = self.create_subscription(CylinderArray, '/' + self.name + '/detected_cylinders', self.detector_callback, 10)
-        
-        """ --------------- Services and Clients --------------- """
-        # client for querying global parameters
-        self.client = self.create_client(GetParameters,
-                                         '/global_parameter_server/get_parameters')
-        request = GetParameters.Request()
-        request.names = ['vehicle_model','num_vehicles']
-        self.client.wait_for_service()
-        future = self.client.call_async(request)
-        future.add_done_callback(self.callback_global_param)
-
-        print("request names: ", request.names)
-        print("request values: ", request.values)
-
-
-        # get spawn location from global parameters
-        # needed to transform odometry from local coordinates to global frame
-
 
         """ --------------- Planning variables --------------- """
         # init LPM object
@@ -100,15 +98,8 @@ class MultiPlanner(Node):
         self.n_plan_max = 10000 # max number of plans to evaluate
 
         # initial conditions [m],[m/s],[m/s^2]
-        # hard-coded initial conditions and goals for now:
-        if self.name == 'iris_0':
-            self.INIT_OFFSET = np.array([[0],[0],[2]])
-            self.p_0 = self.INIT_OFFSET
-            self.p_goal = np.array([[0],[5],[2]])
-        elif self.name == 'iris_1':
-            self.INIT_OFFSET = np.array([[0],[3],[2]])
-            self.p_0 = self.INIT_OFFSET
-            self.p_goal = np.array([[0],[3],[2]])
+        # p_0 will be set later by __initialize_planner()
+        self.p_0 = np.zeros((3,1))
         self.v_0 = np.zeros((3,1))
         self.a_0 = np.zeros((3,1))
 
@@ -133,11 +124,8 @@ class MultiPlanner(Node):
         self.v_max_norm = 2.0 # L2 velocity constraints
         self.delta_v_peak_max = 3.0 # delta from initial velocity constraint
 
-        # goal [m]
-        # self.p_goal = np.zeros((3,1))
-        # self.p_goal[:2] = np.reshape(np.random.uniform(self.XY_BOUNDS[0], self.XY_BOUNDS[1], 2), (2,1))
-        # self.p_goal[2] = np.random.uniform(self.Z_BOUNDS[0], self.Z_BOUNDS[1])
-        #self.p_goal = np.array([[5],[5],[0]])
+        # goal [m] (set later by __initialize_planner() to default to p_0)
+        self.p_goal = np.zeros((3,1))
         self.flag_new_goal = False
         self.r_goal_reached = 0.3 # [m] stop planning when within this dist of goal
 
@@ -147,19 +135,54 @@ class MultiPlanner(Node):
         self.obstacles = []
 
 
-        print("Waiting for start signal to be published")
-    
+    def __initialize_planner(self):
+        """Planner initialization
+        
+        Initialize variables in planner which depend on global parameters (num_vehicles and spawn_x/y). 
+        
+        """
+        # get number of agents in simulation
+        self.N_BOTS = self.global_params['num_vehicles']
+
+        # subscribers for peer robot plans
+        plan_subs = {}
+        peer_bots = ['iris_' + str(i) for i in range(self.N_BOTS)]
+        peer_bots.remove(self.name)
+        for peer_bot in peer_bots:
+            topic = '/' + peer_bot + '/planner/traj'
+            plan_subs[peer_bot] = self.create_subscription(RobotTrajectory, topic, self.traj_callback, 10)
+
+        # get spawn location from global parameters
+        # needed to transform odometry from local coordinates to global frame
+        self.SPAWN_LOC = (self.global_params['spawn_x'][self.agent_num], 
+                          self.global_params['spawn_y'][self.agent_num])
+        print("Spawn location:", self.SPAWN_LOC)
+        self.p_0[0] = self.SPAWN_LOC[0]
+        self.p_0[1] = self.SPAWN_LOC[1]
+        self.p_0[2] = self.TAKEOFF_Z
+
+        self.p_goal = self.p_0 
+
+        print("Planner ready: waiting for start signal to be published")
+
 
     def callback_global_param(self, future):
+        """Parameter service callback.
+
+        Parses the response from the parameter server and stores the parameters as class variables.
+
+        """
         try:
             result = future.result()
         except Exception as e:
             self.get_logger().warn("service call failed %r" % (e,))
         else:
-            for i in range(len(result.values)):
+            i = 0
+            for k in self.global_params.keys():
                 param = result.values[i]
-                val = get_param_value(param)
-                print("Got global param: ", val)
+                self.global_params[k] = get_param_value(param)
+                i = i + 1
+            self.__initialize_planner()
 
 
     def get_time(self):
@@ -519,7 +542,6 @@ class MultiPlanner(Node):
 
 
 def main(args=None):
-    print("Running Multi-Robot Planner")
     rclpy.init(args=args)
 
     # get LPM path

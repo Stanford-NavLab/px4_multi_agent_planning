@@ -12,6 +12,13 @@ def generate_launch_description():
 
     return LaunchDescription([
         Node(
+            package='utility',
+            node_name=ns,
+            node_executable='px4_interface',
+            output='screen',
+            emulate_tty=True
+        ),
+        Node(
             package='offboard_ibqr',
             node_namespace=ns,
             node_executable='offboard_control',

@@ -22,6 +22,7 @@ setup(
         'console_scripts': [
             'rrt_cylinders = global_planner.rrt_cylinders:main',
             'waypoint_publisher = global_planner.waypoint_publisher:main',
+            'direct_hlp = global_planner.direct_hlp:main',
         ],
     },
 )

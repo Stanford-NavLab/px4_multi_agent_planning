@@ -45,7 +45,7 @@ n=0
 while [ ${n} -lt ${num_vehicles} ]; do
 	gnome-terminal --tab -- micrortps_agent -t UDP -n iris_${n} -r $((2020+2*${n})) -s $((2019+2*${n}))
 	sleep 0.1
-	gnome-terminal --tab -- ros2 launch bringup takeoff.launch.py ns:=iris_${n}
+	gnome-terminal --tab -- ros2 launch bringup offboard.launch.py ns:=iris_${n}
 	sleep 0.1
 	n=$(($n + 1))
 done

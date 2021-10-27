@@ -16,6 +16,7 @@
 
   <exec_depend>multi_rtd</exec_depend>
   <exec_depend>offboard_ibqr</exec_depend>
+  <exec_depend>utility</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

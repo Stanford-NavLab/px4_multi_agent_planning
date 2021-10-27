@@ -4,7 +4,6 @@ import xml.etree.ElementTree as ET
 class WorldParser:
 
     def __init__(self,infile):
-
         self.parser = ET.parse(infile)
 
     def allZonotopes(self):

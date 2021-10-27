@@ -12,6 +12,13 @@ def generate_launch_description():
 
     return LaunchDescription([
         Node(
+            package='global_planner',
+            node_name=ns,
+            node_executable='direct_hlp',
+            output='screen',
+            emulate_tty=True
+        ),
+        Node(
             package='multi_rtd',
             node_name=ns,
             node_executable='multi_planner',
