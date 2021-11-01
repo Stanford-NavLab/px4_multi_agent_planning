@@ -29,6 +29,9 @@ class SimplePlanner(Node):
         #filepath = '/home/talbot330-red/ros2_ws/src/multi_rtd/multi_rtd/quadrotor_linear_planning_model.mat'
         lpm = LPM(filepath)
 
+        # initial position
+        p_0 = np.array([[0,0,0]])
+
         # compute trajectory for some arbitrary trajectory parameters
         v_x_0 = 0; a_x_0 = 0; v_x_peak = 2.3
         v_y_0 = 0; a_y_0 = 0; v_y_peak = -3.3

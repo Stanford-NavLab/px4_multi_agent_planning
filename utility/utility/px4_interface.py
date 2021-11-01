@@ -2,9 +2,11 @@ import rclpy
 from rclpy.node import Node
 from rcl_interfaces.srv import GetParameters
 from px4_msgs.msg import VehicleOdometry
+from trajectory_msgs.msg import JointTrajectory
 from multi_rtd_interfaces.msg import RobotTrajectory
-
 from utility.parameter_utils import get_param_value
+import numpy as np
+from std_msgs.msg import Header
 
 class PX4Interface(Node):
     """PX4 Interface
@@ -51,7 +53,7 @@ class PX4Interface(Node):
 
         # trajectory publisher
         self.traj_pub = self.create_publisher(
-                RobotTrajectory,
+                JointTrajectory,
                 self.name + '/fmu/traj',
                 10)
         
@@ -87,6 +89,7 @@ class PX4Interface(Node):
                 i = i + 1
             self.SPAWN_LOC = (self.global_params['spawn_x'][self.agent_num], 
                               self.global_params['spawn_y'][self.agent_num])
+            print("spawn location ", self.SPAWN_LOC)
             print("PX4 Interface ready")
             self.ready = True
             
@@ -98,22 +101,28 @@ class PX4Interface(Node):
 
         """
         if self.ready:
-            
-            # TODO: handle transformation of yaw state
-            new_msg = msg
+            traj = msg.trajectory
+            new_msg = JointTrajectory()
+            new_msg.header = traj.header
+            new_msg.joint_names = traj.joint_names
+            new_msg.points = traj.points
             # transform position from ENU global to NED local
-            new_msg.x = msg.y - self.SPAWN_LOC[1]
-            new_msg.y = msg.x - self.SPAWN_LOC[0]
-            new_msg.z = -msg.z
+            new_msg.points[0].positions = list(np.asarray(traj.points[1].positions) - self.SPAWN_LOC[1])
+            new_msg.points[1].positions = list(np.asarray(traj.points[0].positions) - self.SPAWN_LOC[0])
+            new_msg.points[2].positions = list(-np.asarray(traj.points[2].positions))
             # transform velocity and acceleration from ENU to NED
-            new_msg.vx = msg.vy
-            new_msg.vy = msg.vx
-            new_msg.vz = -msg.vz
-            new_msg.acceleration[0] = msg.acceleration[1]
-            new_msg.acceleration[1] = msg.acceleration[0]
-            new_msg.acceleration[2] = -msg.acceleration[2]
+            new_msg.points[0].velocities = traj.points[1].velocities
+            new_msg.points[1].velocities = traj.points[0].velocities
+            new_msg.points[2].velocities = list(-np.asarray(traj.points[2].velocities))
+            new_msg.points[0].accelerations = traj.points[1].accelerations
+            new_msg.points[1].accelerations = traj.points[0].accelerations
+            new_msg.points[2].accelerations = list(-np.asarray(traj.points[2].accelerations))
+            # copy over time_from_starts
+            new_msg.points[0].time_from_start = traj.points[0].time_from_start
+            new_msg.points[1].time_from_start = traj.points[1].time_from_start
+            new_msg.points[2].time_from_start = traj.points[2].time_from_start
             # re-publish transformed message
-            self.setpoint_pub.publish(new_msg)
+            self.traj_pub.publish(new_msg)
 
     
     def odom_callback(self, msg):
@@ -125,7 +134,7 @@ class PX4Interface(Node):
         if self.ready:
             # TODO: handle transformation of orientation states
             #       and covariances
-            new_msg = msg
+            new_msg = VehicleOdometry()
             # transform position from NED local to ENU global
             new_msg.x = msg.y + self.SPAWN_LOC[0]
             new_msg.y = msg.x + self.SPAWN_LOC[1]

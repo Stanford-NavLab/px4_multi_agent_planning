@@ -11,13 +11,13 @@ def generate_launch_description():
             sys_id = int(arg.split("_")[1])
 
     return LaunchDescription([
-        Node(
-            package='global_planner',
-            node_name=ns,
-            node_executable='direct_hlp',
-            output='screen',
-            emulate_tty=True
-        ),
+        # Node(
+        #     package='global_planner',
+        #     node_name=ns,
+        #     node_executable='direct_hlp',
+        #     output='screen',
+        #     emulate_tty=True
+        # ),
         Node(
             package='multi_rtd',
             node_name=ns,

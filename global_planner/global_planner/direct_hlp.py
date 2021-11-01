@@ -82,7 +82,7 @@ class DirectHLP(Node):
 
     def publish_goal(self):
         if self.goal_set:
-            print("publishing goal")
+            #print("publishing goal")
             pose = PointStamped()
             pose.point.x = float(self.GOAL_POS[0])
             pose.point.y = float(self.GOAL_POS[1])

@@ -93,7 +93,7 @@ public:
 			this->create_publisher<VehicleCommand>("fmu/vehicle_command/in");
 #endif
 		// // Subscribe to odometry
-		// odom_sub_ = this->create_subscription<px4_msgs::msg::VehicleOdometry>("fmu/vehicle_odometry/out", 10, std::bind(&OffboardControl::odom_callback, this, _1));
+		odom_sub_ = this->create_subscription<px4_msgs::msg::VehicleOdometry>("fmu/vehicle_odometry/out", 10, std::bind(&OffboardControl::odom_callback, this, _1));
 
 		// get common timestamp
 		timesync_sub_ =
@@ -102,7 +102,6 @@ public:
 					timestamp_.store(msg->timestamp);
 				});
 		homeReachedFlag = false;
-		AtHomeFlag = true;
 		homeLocation.x = HOME_POSITION_X;
 		homeLocation.y = HOME_POSITION_Y;
 		homeLocation.z = HOME_POSITION_Z + OFFSET_Z;
@@ -153,9 +152,14 @@ private:
 
 	std::atomic<uint64_t> timestamp_;   			//!< common synced timestamped
 	mutable std::uint8_t homeReachedFlag;	        // Boolean to determine if the set home pose has been reached
-	mutable std::uint8_t AtHomeFlag;
 
+
+	mutable TrajectorySetpoint positionTargetMsg{};		// Goal Position
 	mutable TrajectorySetpoint homeLocation{};		// Home Position
+
+	mutable VehicleOdometry ibqrOdometry;			// Store the vehicle's latest odometry information
+
+
 
 
 	std::string name_space;                         // namespace of the node
@@ -165,11 +169,16 @@ private:
 	uint64_t offboard_setpoint_counter_;   //!< counter for the number of setpoints sent
 
 	//Class private methods:
+
+	// Copy the new trajectory point to positionTargetMsg to be published to mavros
+	void get_newPositionTarget(void) const;
 	// Determine if the home location has been reached
 	bool isHomeReached(void) const;
 	// Determine if a particular goal pose has been reached
 	bool isGoalReached(void) const;
 	// Set the PositionTarget to the home coordinates
+	void goHome(void) const;
+
 
 
 	void publish_offboard_control_mode() const;
@@ -219,37 +228,33 @@ void OffboardControl::publish_offboard_control_mode() const {
  *        vehicle hover at 5 meters with a yaw angle of 180 degrees.
  */
 void OffboardControl::publish_trajectory_setpoint() const {
+	RCLCPP_INFO(this->get_logger(), "Testing 123")
 
+	if (homeReachedFlag){		
+		positionTargetMsg.timestamp = timestamp_.load();
+		trajectory_setpoint_publisher_->publish(positionTargetMsg);
 
-	if (AtHomeFlag){
-	TrajectorySetpoint goal{};
-	if (isHomeReached){
-	goal.timestamp = timestamp_.load();
-	goal.x = 0.0;
-	goal.y = 0.0;
-	goal.z = -5.0;
-	goal.yaw = -3.14; // [-PI:PI]
-	trajectory_setpoint_publisher_->publish(goal);
-	AtHomeFlag = false
-	}
+		if (isGoalReached())
+		{
+			goHome();
+		}	 
 
 	}
-
-	if(AtHomeFlag==false){
-
-	if (isGoalReached){
-	TrajectorySetpoint home{};
-	home.x = HOME_POSITION_X;
-	home.y = HOME_POSITION_Y;
-	home.z = HOME_POSITION_Z + OFFSET_Z;
-	home.yaw = HOME_POSITION_YAW;
+	else
+	{
+		if (isHomeReached())
+		{
+			RCLCPP_INFO(this->get_logger(), "***Home Location Reached: Switching to Position Target Mode***");
+			homeReachedFlag = true;
+			get_newPositionTarget();
+		}
+		else
+		{
+      		homeLocation.timestamp = timestamp_.load();
+			trajectory_setpoint_publisher_->publish(homeLocation);
+		}
 	}
-
-
-
-
-
-	}
+}
 }
 
 /**
@@ -274,33 +279,122 @@ void OffboardControl::publish_vehicle_command(uint16_t command, float param1,
 	vehicle_command_publisher_->publish(msg);
 }
 
-// /*--------------- Custom Offboard Functions ---------------*/
-// /**
-//  * @brief Calback for subscription to vehicle odometry
-// */
-// void OffboardControl::odom_callback(const px4_msgs::msg::VehicleOdometry::SharedPtr odom) const
-// {
-// 	ibqrOdometry.timestamp = odom->timestamp;
 
-// 	ibqrOdometry.local_frame = odom->local_frame;
-// 	ibqrOdometry.x = odom->x;
-// 	ibqrOdometry.y = odom->y;
-// 	ibqrOdometry.z = odom->z;
 
-// 	ibqrOdometry.velocity_frame = odom->velocity_frame;
-// 	ibqrOdometry.vx = odom->vx;
-// 	ibqrOdometry.vy = odom->vy;
-// 	ibqrOdometry.vz = odom->vz;
+void OffboardControl::get_newPositionTarget(void) const
+{
+  if (!traj_planned->points.empty())
+  {
+    RCLCPP_INFO(this->get_logger(), "New Target Received:");
 
-// 	ibqrOdometry.q[X] = odom->q[X];
-// 	ibqrOdometry.q[Y] = odom->q[Y];
-// 	ibqrOdometry.q[Z] = odom->q[Z];
-// 	ibqrOdometry.q[W] = odom->q[W];
 
-// 	ibqrOdometry.rollspeed = odom->rollspeed;
-// 	ibqrOdometry.pitchspeed = odom->pitchspeed;
-// 	ibqrOdometry.yawspeed = odom->yawspeed;
-// }
+	positionTargetMsg.x = 0.0;
+    positionTargetMsg.y = 0.0;
+    positionTargetMsg.z = -5.0
+	positionTargetMsg.yaw = -3.14
+
+    RCLCPP_INFO(this->get_logger(), "rx = %f ", positionTargetMsg.x);
+    RCLCPP_INFO(this->get_logger(), "ry = %f ", positionTargetMsg.y);
+    RCLCPP_INFO(this->get_logger(), "rz = %f ", positionTargetMsg.z);
+  }
+}
+
+bool OffboardControl::isHomeReached(void) const
+{
+	double epsilon = ALLOWED_ERROR_4_HOME_REACHED;
+	bool check = false;
+
+
+	//RCLCPP_INFO(this->get_logger(), "Home: x = %f, y = %f, z = %f", homeLocation.x, homeLocation.y, homeLocation.z);
+	RCLCPP_INFO(this->get_logger(), "IBQR: x = %f, y = %f, z = %f", ibqrOdometry.x, ibqrOdometry.y, ibqrOdometry.z);
+
+	// Check x boundary
+	if ( (ibqrOdometry.x < homeLocation.x + epsilon) && (ibqrOdometry.x > homeLocation.x - epsilon) )
+	{
+		// Check y boundary
+		if ( (ibqrOdometry.y < homeLocation.y + epsilon) && (ibqrOdometry.y > homeLocation.y - epsilon) )
+		{
+		// Check z boundary
+			if ( (ibqrOdometry.z < (homeLocation.z - OFFSET_Z + epsilon)) && (ibqrOdometry.z > (homeLocation.z - OFFSET_Z - epsilon)) )
+			{
+				check = true;
+			}
+		}
+	}
+
+	return check;
+}
+
+
+bool OffboardControl::isGoalReached(void) const
+{
+	bool check = false;
+
+    double epsilon = ALLOWED_ERROR_4_POS_GOAL_REACHED;
+
+	// RCLCPP_INFO(this->get_logger(), "dx: %f, dy: %f, dz: %f", ibqrOdometry.x-positionTargetMsg.x,
+	// 														  ibqrOdometry.y-positionTargetMsg.y,
+	// 														  ibqrOdometry.z-positionTargetMsg.z);
+    // Check x boundary
+    if ( (ibqrOdometry.x < positionTargetMsg.x + epsilon) && (ibqrOdometry.x > positionTargetMsg.x - epsilon) )
+    { 
+        // Check y boundary
+        if ( (ibqrOdometry.y < positionTargetMsg.y + epsilon) && (ibqrOdometry.y > positionTargetMsg.y - epsilon) )
+        {
+            // Check z boundary
+            if ( (ibqrOdometry.z < (positionTargetMsg.z + epsilon)) && (ibqrOdometry.z > (positionTargetMsg.z - epsilon)) )
+            {
+                check = true;
+            }
+        }
+    }
+
+    return check;
+}
+/**
+ * @brief Set the PositionTarget to the home coordinates
+*/
+void OffboardControl::goHome(void) const
+{
+	// Set goal to home coordinates
+	positionTargetMsg.x = HOME_POSITION_X;
+    positionTargetMsg.y = HOME_POSITION_Y;
+    positionTargetMsg.z = HOME_POSITION_Z + OFFSET_Z;
+	positionTargetMsg.yaw = HOME_POSITION_YAW;
+	
+	// make the reach flag false
+	homeReachedFlag = false;
+
+    RCLCPP_INFO(this->get_logger(), "Going Home");
+}
+
+/*--------------- Custom Offboard Functions ---------------*/
+/**
+ * @brief Calback for subscription to vehicle odometry
+*/
+void OffboardControl::odom_callback(const px4_msgs::msg::VehicleOdometry::SharedPtr odom) const
+{
+	ibqrOdometry.timestamp = odom->timestamp;
+
+	ibqrOdometry.local_frame = odom->local_frame;
+	ibqrOdometry.x = odom->x;
+	ibqrOdometry.y = odom->y;
+	ibqrOdometry.z = odom->z;
+
+	ibqrOdometry.velocity_frame = odom->velocity_frame;
+	ibqrOdometry.vx = odom->vx;
+	ibqrOdometry.vy = odom->vy;
+	ibqrOdometry.vz = odom->vz;
+
+	ibqrOdometry.q[X] = odom->q[X];
+	ibqrOdometry.q[Y] = odom->q[Y];
+	ibqrOdometry.q[Z] = odom->q[Z];
+	ibqrOdometry.q[W] = odom->q[W];
+
+	ibqrOdometry.rollspeed = odom->rollspeed;
+	ibqrOdometry.pitchspeed = odom->pitchspeed;
+	ibqrOdometry.yawspeed = odom->yawspeed;
+}
 
 int main(int argc, char* argv[]) {
 	std::cout << "Starting offboard control node..." << std::endl;

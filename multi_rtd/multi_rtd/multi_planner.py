@@ -49,8 +49,8 @@ class MultiPlanner(Node):
         future.add_done_callback(self.callback_global_param)
 
         # initialize placeholder class variables (which will get set later by __initialize_planner())
-        self.N_BOTS = None
-        self.SPAWN_LOC = None
+        self.N_BOTS = 0
+        self.SPAWN_LOC = np.zeros((3,1))
 
         """ --------------- Timing and constants --------------- """
         self.T_REPLAN = 0.5 # [s] amount of time between replans
@@ -85,7 +85,7 @@ class MultiPlanner(Node):
         start_sub = self.create_subscription(Bool, '/simulation_start', self.start_callback, 10)
 
         # subscriber for odometry
-        odom_sub = self.create_subscription(VehicleOdometry, '/' + self.name + '/fmu/vehicle_odometry/out', self.odom_callback, 10)
+        odom_sub = self.create_subscription(VehicleOdometry, '/' + self.name + '/planner/vehicle_odometry/out', self.odom_callback, 10)
 
         # subscriber for detected obstacles
         detector_sub = self.create_subscription(CylinderArray, '/' + self.name + '/detected_cylinders', self.detector_callback, 10)
@@ -154,13 +154,14 @@ class MultiPlanner(Node):
 
         # get spawn location from global parameters
         # needed to transform odometry from local coordinates to global frame
-        self.SPAWN_LOC = (self.global_params['spawn_x'][self.agent_num], 
-                          self.global_params['spawn_y'][self.agent_num])
-        print("Spawn location:", self.SPAWN_LOC)
-        self.p_0[0] = self.SPAWN_LOC[0]
-        self.p_0[1] = self.SPAWN_LOC[1]
-        self.p_0[2] = self.TAKEOFF_Z
+        # self.SPAWN_LOC[0] = self.global_params['spawn_x'][self.agent_num]
+        # self.SPAWN_LOC[1] = self.global_params['spawn_y'][self.agent_num]
+        # print("Spawn location:", self.SPAWN_LOC)
+        # self.p_0[0] = self.SPAWN_LOC[0]
+        # self.p_0[1] = self.SPAWN_LOC[1]
+        # self.p_0[2] = self.TAKEOFF_Z
 
+        # gets set by high-level planner
         self.p_goal = self.p_0 
 
         print("Planner ready: waiting for start signal to be published")
@@ -223,7 +224,7 @@ class MultiPlanner(Node):
 
         """
         self.p_goal = np.array([[data.point.x], [data.point.y], [data.point.z]])
-        print("Goal Callback", self.p_goal)
+        #print("Goal Callback", self.p_goal)
         self.flag_new_goal = True
 
 
@@ -249,6 +250,10 @@ class MultiPlanner(Node):
 
         """
         self.odometry = msg
+        self.p_0 = np.array([[msg.x],[msg.y],[msg.z]])
+        self.v_0 = np.array([[msg.vx],[msg.vy],[msg.vz]])
+        print("odom callback: ", tuple(self.p_0))
+        
     
 
     def detector_callback(self, msg):
@@ -269,7 +274,7 @@ class MultiPlanner(Node):
         Save peer committed plan.
 
         """
-        print("Received peer trajectory, t = ", self.get_time())
+        #print("Received peer trajectory, t = ", self.get_time())
         bot_name = data.robot_name
         traj = data.trajectory
         x_pos = traj.points[0].positions
@@ -321,14 +326,6 @@ class MultiPlanner(Node):
             if not check_obs_collision(plan, obs, 2*self.R_BOT):
                 return False
         return True
-
-
-    def get_initial_conditions(self):
-        o = self.odometry
-        p_0 = np.array([[o.x],[o.y],[o.z]])
-        v_0 = np.array([[o.vx],[o.vy],[o.vz]])
-        a_0 = np.zeros((3,1))
-        return (p_0,v_0,a_0)
 
 
     def traj_opt(self, t_start_plan, T_old, X_old, t2start, T_new):
@@ -389,7 +386,7 @@ class MultiPlanner(Node):
 
         # iterate through V_peaks until we find a feasible one
         idx_v_peak = 0
-        print("Time since t_start_plan: ", self.get_time() - t_start_plan)
+        #print("Time since t_start_plan: ", self.get_time() - t_start_plan)
         while (idx_v_peak <= n_V_peak):
         
             # get trajectory positions for current v_peak
@@ -521,10 +518,8 @@ class MultiPlanner(Node):
                         # planning has succeeded! commit and publish the plan
                         self.commit_plan[0,:] = self.pend_plan[0,:]
                         self.commit_plan[1:,:] = self.pend_plan[1:,:]
-                        # shift plan to local coordinates for tracking
-                        p = p - self.INIT_OFFSET
                         traj_msg = wrap_robot_traj_msg((p,v,a), t2start, self.name)
-                        print("Publishing trajectory, t = ", self.get_time())
+                        #print("Publishing trajectory, t = ", self.get_time())
                         self.traj_pub.publish(traj_msg)
                 
                 # if either check or recheck fails, bail out and revert to previous plan

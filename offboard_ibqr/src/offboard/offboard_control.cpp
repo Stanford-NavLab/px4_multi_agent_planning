@@ -55,7 +55,7 @@
  * 
  * The offboard_control node deals with odometry and setpoints entirely in the local
  * NED PX4 frame. The planner produces trajectories in ENU global frame which are transformed
- * to local NED by the px4_interface node before being passed to offboard_control
+ * to local NED by the px4_interface node before being passed to offboard_control.
  */
 
 /******************************** Include Files *******************************/
@@ -92,7 +92,7 @@ using std::placeholders::_1;
 /* Note PX4 uses NED coordinate frame */
 #define HOME_POSITION_X                     0       // x-coordinate for home
 #define HOME_POSITION_Y                     0       // y-coordinate for home
-#define HOME_POSITION_Z                     2       // z-coordinate for home
+#define HOME_POSITION_Z                     -2       // z-coordinate for home
 #define HOME_POSITION_YAW					3.14	// Yaw for home (in rad)
 
 #define TAKEOFF_SPEED						-0.5	// In meters/second
@@ -110,7 +110,7 @@ using std::placeholders::_1;
 
 #define LOG_TRAJECTORY_ODOMETRY				1		// Set to 1 to log the trajectory odometry. Set to 0 to turn off
 
-#define ROBOT_TRAJECTORY                    1       // Whether to use RobotTrajectory or JointTrajectory
+#define ROBOT_TRAJECTORY                    0       // Whether to use RobotTrajectory or JointTrajectory
 
 /************************** Local Function Prototypes *************************/
 
@@ -149,7 +149,7 @@ public:
 		#if ROBOT_TRAJECTORY
 			traj_sub_ = this->create_subscription<multi_rtd_interfaces::msg::RobotTrajectory>("planner/traj", 10, std::bind(&OffboardControl::traj_callback, this, _1));
 		#else
-			traj_sub_ = this->create_subscription<trajectory_msgs::msg::JointTrajectory>("planner/traj", 10, std::bind(&OffboardControl::traj_callback, this, _1));
+			traj_sub_ = this->create_subscription<trajectory_msgs::msg::JointTrajectory>("fmu/traj", 10, std::bind(&OffboardControl::traj_callback, this, _1));
 		#endif
 		// Subscribe to odometry
 		odom_sub_ = this->create_subscription<px4_msgs::msg::VehicleOdometry>("fmu/vehicle_odometry/out", 10, std::bind(&OffboardControl::odom_callback, this, _1));
@@ -516,7 +516,7 @@ void OffboardControl::get_newPositionTarget(void) const
   {
     RCLCPP_INFO(this->get_logger(), "New Target Received:");
 
-	// We apply a transformation to the planned trajectory points because we plan in ENU and px4 expects NED
+	// Trajectories are transformed from ENU to NED by the px4_interface node before they are received
     // positionTargetMsg.x = traj_planned->points[Y].positions[traj_index] + homeLocation.x;
     // positionTargetMsg.y = traj_planned->points[X].positions[traj_index] + homeLocation.y;
     // positionTargetMsg.z = -traj_planned->points[Z].positions[traj_index] + homeLocation.z - OFFSET_Z;
@@ -529,9 +529,9 @@ void OffboardControl::get_newPositionTarget(void) const
 	// positionTargetMsg.acceleration[Y] = traj_planned->points[X].accelerations[traj_index];
 	// positionTargetMsg.acceleration[Z] = -traj_planned->points[Z].accelerations[traj_index];
 
-	positionTargetMsg.x = traj_planned->points[X].positions[traj_index] + homeLocation.x;
-    positionTargetMsg.y = traj_planned->points[Y].positions[traj_index] + homeLocation.y;
-    positionTargetMsg.z = traj_planned->points[Z].positions[traj_index] + homeLocation.z - OFFSET_Z;
+	positionTargetMsg.x = traj_planned->points[X].positions[traj_index];
+    positionTargetMsg.y = traj_planned->points[Y].positions[traj_index];
+    positionTargetMsg.z = traj_planned->points[Z].positions[traj_index] - OFFSET_Z;
 
 	positionTargetMsg.vx = traj_planned->points[X].velocities[traj_index];
 	positionTargetMsg.vy = traj_planned->points[Y].velocities[traj_index];
