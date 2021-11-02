@@ -56,6 +56,8 @@
 using namespace std::chrono;
 using namespace std::chrono_literals;
 using namespace px4_msgs::msg;
+using std::placeholders::_1;
+
 
 #define LOG_TRAJECTORY_ODOMETRY				0		// Set to 1 to log the trajectory odometry. Set to 0 to turn
 
@@ -66,6 +68,10 @@ using namespace px4_msgs::msg;
 #define HOME_POSITION_Z                     -2      // z-coordinate for home
 #define HOME_POSITION_YAW					3.14	// Yaw for home (in rad)
 #define TAKEOFF_SPEED						-0.5	// In meters/second
+
+#define ALLOWED_ERROR_4_HOME_REACHED        0.2		// In meters
+#define ALLOWED_ERROR_4_POS_GOAL_REACHED    0.1		// In meters
+
 
 #define OFFSET_Z							0.5
 
@@ -149,6 +155,7 @@ private:
 	rclcpp::Publisher<TrajectorySetpoint>::SharedPtr trajectory_setpoint_publisher_;
 	rclcpp::Publisher<VehicleCommand>::SharedPtr vehicle_command_publisher_;
 	rclcpp::Subscription<px4_msgs::msg::Timesync>::SharedPtr timesync_sub_;
+	
 
 	std::atomic<uint64_t> timestamp_;   			//!< common synced timestamped
 	mutable std::uint8_t homeReachedFlag;	        // Boolean to determine if the set home pose has been reached
@@ -255,7 +262,6 @@ void OffboardControl::publish_trajectory_setpoint() const {
 		}
 	}
 }
-}
 
 /**
  * @brief Publish vehicle commands
@@ -290,7 +296,7 @@ void OffboardControl::get_newPositionTarget(void) const
 
 	positionTargetMsg.x = 0.0;
     positionTargetMsg.y = 0.0;
-    positionTargetMsg.z = -5.0
+    positionTargetMsg.z = -30.0
 	positionTargetMsg.yaw = -3.14
 
     RCLCPP_INFO(this->get_logger(), "rx = %f ", positionTargetMsg.x);
@@ -332,7 +338,7 @@ bool OffboardControl::isGoalReached(void) const
 
     double epsilon = ALLOWED_ERROR_4_POS_GOAL_REACHED;
 
-	// RCLCPP_INFO(this->get_logger(), "dx: %f, dy: %f, dz: %f", ibqrOdometry.x-positionTargetMsg.x,
+	RCLCPP_INFO(this->get_logger(), "dx: %f, dy: %f, dz: %f", ibqrOdometry.x-positionTargetMsg.x,
 	// 														  ibqrOdometry.y-positionTargetMsg.y,
 	// 														  ibqrOdometry.z-positionTargetMsg.z);
     // Check x boundary
@@ -397,7 +403,7 @@ void OffboardControl::odom_callback(const px4_msgs::msg::VehicleOdometry::Shared
 }
 
 int main(int argc, char* argv[]) {
-	std::cout << "Starting offboard control node..." << std::endl;
+	std::cout << "Starting offboard waypoint node..." << std::endl;
 	setvbuf(stdout, NULL, _IONBF, BUFSIZ);
 	rclcpp::init(argc, argv);
 	rclcpp::spin(std::make_shared<OffboardControl>());

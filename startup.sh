@@ -20,6 +20,8 @@ num_vehicles=${global_parameter_server_ros__parameters_num_vehicles}
 spawn_x=("${global_parameter_server_ros__parameters_spawn_x[@]}")
 spawn_y=("${global_parameter_server_ros__parameters_spawn_y[@]}")
 
+#echo ${spawn_x[*]}
+
 # generate vehicle spawn string
 # TODO: put in check that num_vehicles == len(spawn_x/y)
 spawn_str=''

@@ -56,7 +56,7 @@ class MultiPlanner(Node):
         self.T_REPLAN = 0.5 # [s] amount of time between replans
         self.T_PLAN = 0.4 # [s] amount of time allotted for planning itself (remaining time allotted for checking)
         self.N_DIM = 3
-        self.R_BOT = 0.25 # [m]
+        self.R_BOT = 1.0 # [m]
         self.XY_BOUNDS  = [-5.0, 5.0] # [m]
         self.Z_BOUNDS = [0.0, 5.0] # [m]
         self.TAKEOFF_Z = 2 # [m]
@@ -252,7 +252,7 @@ class MultiPlanner(Node):
         self.odometry = msg
         self.p_0 = np.array([[msg.x],[msg.y],[msg.z]])
         self.v_0 = np.array([[msg.vx],[msg.vy],[msg.vz]])
-        print("odom callback: ", tuple(self.p_0))
+        #print("odom callback: ", tuple(self.p_0))
         
     
 
@@ -357,8 +357,8 @@ class MultiPlanner(Node):
         x_0 = trajectory_closest_point(t2start, T_old, X_old)
         # update initial conditions
         #self.p_0,self.v_0,self.a_0 = self.get_initial_conditions()
-        self.p_0 = np.reshape(x_0[:self.N_DIM], (3,1))
-        self.v_0 = np.reshape(x_0[self.N_DIM:2*self.N_DIM], (3,1))
+        # self.p_0 = np.reshape(x_0[:self.N_DIM], (3,1))
+        # self.v_0 = np.reshape(x_0[self.N_DIM:2*self.N_DIM], (3,1))
         self.a_0 = np.reshape(x_0[2*self.N_DIM:3*self.N_DIM], (3,1))
 
         # generate potential v_peak samples
@@ -401,13 +401,13 @@ class MultiPlanner(Node):
             check_obs = self.check_obstacle_collisions(cand_plan)
 
             if check_obs and check_others:
+                print("found a plan, idx = ", idx_v_peak)
                 return v_peak
             else:
                 idx_v_peak += 1
 
             if (self.get_time() - t_start_plan > self.T_PLAN):
-                print("ran out of time for planning")
-                print("idx = ", idx_v_peak)
+                print("ran out of time for planning, idx = ", idx_v_peak)
                 break
 
         # no v_peaks are feasible

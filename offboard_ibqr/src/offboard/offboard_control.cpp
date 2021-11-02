@@ -108,7 +108,7 @@ using std::placeholders::_1;
 #define TIME_BASED							1		// Set to 1 to use the time-based method. Set to 0 to use location-based method
 #define TRAJ_TIME_INTERVAL					100		// in milliseconds
 
-#define LOG_TRAJECTORY_ODOMETRY				1		// Set to 1 to log the trajectory odometry. Set to 0 to turn off
+#define LOG_TRAJECTORY_ODOMETRY				0		// Set to 1 to log the trajectory odometry. Set to 0 to turn off
 
 #define ROBOT_TRAJECTORY                    0       // Whether to use RobotTrajectory or JointTrajectory
 
@@ -385,7 +385,7 @@ void OffboardControl::publish_trajectory_setpoint() const
 		}
 		else
 		{
-      		homeLocation.timestamp = timestamp_.load();
+			homeLocation.timestamp = timestamp_.load();
 
 			/* For debugging */
 			// static uint32_t count = 0;
@@ -531,7 +531,7 @@ void OffboardControl::get_newPositionTarget(void) const
 
 	positionTargetMsg.x = traj_planned->points[X].positions[traj_index];
     positionTargetMsg.y = traj_planned->points[Y].positions[traj_index];
-    positionTargetMsg.z = traj_planned->points[Z].positions[traj_index] - OFFSET_Z;
+    positionTargetMsg.z = traj_planned->points[Z].positions[traj_index];
 
 	positionTargetMsg.vx = traj_planned->points[X].velocities[traj_index];
 	positionTargetMsg.vy = traj_planned->points[Y].velocities[traj_index];
@@ -541,9 +541,9 @@ void OffboardControl::get_newPositionTarget(void) const
 	positionTargetMsg.acceleration[Y] = traj_planned->points[Y].accelerations[traj_index];
 	positionTargetMsg.acceleration[Z] = traj_planned->points[Z].accelerations[traj_index];
 
-    RCLCPP_INFO(this->get_logger(), "rx = %f -- vx = %f -- ax = %f", positionTargetMsg.x, positionTargetMsg.vx, positionTargetMsg.acceleration[X]);
-    RCLCPP_INFO(this->get_logger(), "ry = %f -- vy = %f -- ay = %f", positionTargetMsg.y, positionTargetMsg.vy, positionTargetMsg.acceleration[Y]);
-    RCLCPP_INFO(this->get_logger(), "rz = %f -- vz = %f -- az = %f", positionTargetMsg.z, positionTargetMsg.vz, positionTargetMsg.acceleration[Z]);
+    // RCLCPP_INFO(this->get_logger(), "rx = %f -- vx = %f -- ax = %f", positionTargetMsg.x, positionTargetMsg.vx, positionTargetMsg.acceleration[X]);
+    // RCLCPP_INFO(this->get_logger(), "ry = %f -- vy = %f -- ay = %f", positionTargetMsg.y, positionTargetMsg.vy, positionTargetMsg.acceleration[Y]);
+    // RCLCPP_INFO(this->get_logger(), "rz = %f -- vz = %f -- az = %f", positionTargetMsg.z, positionTargetMsg.vz, positionTargetMsg.acceleration[Z]);
   }
 }
 /**

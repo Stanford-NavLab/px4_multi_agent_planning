@@ -22,14 +22,14 @@ def generate_launch_description():
             package='offboard_ibqr',
             node_namespace=ns,
             node_executable='trajectory_logger',
-            #output='screen',
+            output='screen',
             emulate_tty=True
         ),
         Node(
             package='offboard_ibqr',
             node_namespace=ns,
             node_executable='offboard_waypoint',
-            #output='screen',
+            output='screen',
             emulate_tty=True
         )
     ])

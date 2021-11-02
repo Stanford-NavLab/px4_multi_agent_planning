@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from rcl_interfaces.srv import GetParameters
 from px4_msgs.msg import VehicleOdometry
-from trajectory_msgs.msg import JointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 from multi_rtd_interfaces.msg import RobotTrajectory
 from utility.parameter_utils import get_param_value
 import numpy as np
@@ -105,22 +105,28 @@ class PX4Interface(Node):
             new_msg = JointTrajectory()
             new_msg.header = traj.header
             new_msg.joint_names = traj.joint_names
-            new_msg.points = traj.points
-            # transform position from ENU global to NED local
-            new_msg.points[0].positions = list(np.asarray(traj.points[1].positions) - self.SPAWN_LOC[1])
-            new_msg.points[1].positions = list(np.asarray(traj.points[0].positions) - self.SPAWN_LOC[0])
-            new_msg.points[2].positions = list(-np.asarray(traj.points[2].positions))
-            # transform velocity and acceleration from ENU to NED
-            new_msg.points[0].velocities = traj.points[1].velocities
-            new_msg.points[1].velocities = traj.points[0].velocities
-            new_msg.points[2].velocities = list(-np.asarray(traj.points[2].velocities))
-            new_msg.points[0].accelerations = traj.points[1].accelerations
-            new_msg.points[1].accelerations = traj.points[0].accelerations
-            new_msg.points[2].accelerations = list(-np.asarray(traj.points[2].accelerations))
-            # copy over time_from_starts
-            new_msg.points[0].time_from_start = traj.points[0].time_from_start
-            new_msg.points[1].time_from_start = traj.points[1].time_from_start
-            new_msg.points[2].time_from_start = traj.points[2].time_from_start
+
+            # transform position from ENU global to NED local, and velocity and accleration from ENU to NED
+            jtp_x = JointTrajectoryPoint()
+            jtp_x.positions = list(np.asarray(traj.points[1].positions) - self.SPAWN_LOC[1])
+            jtp_x.velocities = traj.points[1].velocities
+            jtp_x.accelerations = traj.points[1].accelerations
+            jtp_x.time_from_start = traj.points[0].time_from_start
+
+            jtp_y = JointTrajectoryPoint()
+            jtp_y.positions = list(np.asarray(traj.points[0].positions) - self.SPAWN_LOC[0])
+            jtp_y.velocities = traj.points[0].velocities
+            jtp_y.accelerations = traj.points[0].accelerations
+            jtp_y.time_from_start = traj.points[1].time_from_start
+
+            jtp_z = JointTrajectoryPoint()
+            jtp_z.positions = list(-np.asarray(traj.points[2].positions))
+            jtp_z.velocities = list(-np.asarray(traj.points[2].velocities))
+            jtp_z.accelerations = list(-np.asarray(traj.points[2].accelerations))
+            jtp_z.time_from_start = traj.points[2].time_from_start
+
+            new_msg.points = [jtp_x, jtp_y, jtp_z]
+
             # re-publish transformed message
             self.traj_pub.publish(new_msg)
 
