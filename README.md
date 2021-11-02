@@ -12,5 +12,5 @@
  - May need to make clean before building (`source ~/px4_ros_com_ros2/src/px4_ros_com/scripts/clean_all.bash`)
 
 ## Usage
- - Run `./startup` in order to start Gazebo and spawn and takeoff vehicles in offboard mode (may need to `chmod +x`)
+ - Run `./startup` in order to start Gazebo and spawn and takeoff vehicles in offboard mode (may need to `chmod +x` for permissions)
  - Edit `bringup/config/global_params.yaml` to change number of vehicles, spawn locations, goal positions, etc.
